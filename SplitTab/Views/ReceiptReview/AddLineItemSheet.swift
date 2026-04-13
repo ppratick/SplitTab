@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct AddLineItemSheet: View {
-    /// Food subtotal — used to compute percentage-based amounts.
     var baseAmount: Decimal
     var onAdd: (LineItem) -> Void
 
@@ -47,138 +46,133 @@ struct AddLineItemSheet: View {
                 Color.splitBg.ignoresSafeArea()
 
                 ScrollView {
-                        VStack(spacing: 16) {
-                            // Name + Amount card
-                            GlassCard {
-                                VStack(alignment: .leading, spacing: 16) {
-                                    Text("Item Details")
-                                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                                        .foregroundStyle(.secondary)
+                    VStack(spacing: 16) {
+                        GlassCard {
+                            VStack(alignment: .leading, spacing: 16) {
+                                Text("Item Details")
+                                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                                    .foregroundStyle(.secondary)
 
-                                    TextField("Item name", text: $name)
-                                        .font(.system(.body, design: .rounded))
-                                        .textInputAutocapitalization(.words)
-                                        .focused($focusedField, equals: .name)
-                                        .submitLabel(.next)
-                                        .onSubmit { focusedField = inputMode == .dollar ? .amount : .percent }
+                                TextField("Item name", text: $name)
+                                    .font(.system(.body, design: .rounded))
+                                    .textInputAutocapitalization(.words)
+                                    .focused($focusedField, equals: .name)
+                                    .submitLabel(.next)
+                                    .onSubmit { focusedField = inputMode == .dollar ? .amount : .percent }
 
-                                    Divider().overlay(Color.white.opacity(0.1))
+                                Divider().overlay(Color.white.opacity(0.06))
 
-                                    // Input mode toggle (only for non-food)
-                                    if supportsPct {
-                                        Picker("Input Mode", selection: $inputMode) {
-                                            Text("$ Fixed").tag(InputMode.dollar)
-                                            Text("% of subtotal").tag(InputMode.percentage)
-                                        }
-                                        .pickerStyle(.segmented)
-                                        .onChange(of: inputMode) { _, newMode in
-                                            switch newMode {
-                                            case .dollar:
-                                                if let pct = Decimal(string: percentText), pct > 0, baseAmount > 0 {
-                                                    let v = Decimal.roundToTwo(baseAmount * pct / 100)
-                                                    amountText = NSDecimalNumber(decimal: v).stringValue
-                                                }
-                                            case .percentage:
-                                                if let amt = Decimal(string: amountText), amt > 0, baseAmount > 0 {
-                                                    let v = Decimal.roundToTwo(amt / baseAmount * 100)
-                                                    percentText = NSDecimalNumber(decimal: v).stringValue
-                                                }
+                                if supportsPct {
+                                    Picker("Input Mode", selection: $inputMode) {
+                                        Text("$ Fixed").tag(InputMode.dollar)
+                                        Text("% of subtotal").tag(InputMode.percentage)
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .onChange(of: inputMode) { _, newMode in
+                                        switch newMode {
+                                        case .dollar:
+                                            if let pct = Decimal(string: percentText), pct > 0, baseAmount > 0 {
+                                                let v = Decimal.roundToTwo(baseAmount * pct / 100)
+                                                amountText = NSDecimalNumber(decimal: v).stringValue
+                                            }
+                                        case .percentage:
+                                            if let amt = Decimal(string: amountText), amt > 0, baseAmount > 0 {
+                                                let v = Decimal.roundToTwo(amt / baseAmount * 100)
+                                                percentText = NSDecimalNumber(decimal: v).stringValue
                                             }
                                         }
-
-                                        Divider().overlay(Color.white.opacity(0.1))
                                     }
 
-                                    // Amount / percentage field
-                                    if inputMode == .dollar || !supportsPct {
-                                        HStack {
-                                            Text("Amount")
-                                                .font(.system(.body, design: .rounded))
-                                                .foregroundStyle(.secondary)
-                                            Spacer()
-                                            HStack(spacing: 0) {
-                                                Text("$")
-                                                    .foregroundStyle(.secondary)
-                                                    .font(.system(.body, design: .rounded, weight: .semibold))
-                                                TextField("0.00", text: $amountText)
-                                                    .font(.system(.body, design: .rounded, weight: .semibold))
-                                                    .multilineTextAlignment(.trailing)
-                                                    .keyboardType(.decimalPad)
-                                                    .focused($focusedField, equals: .amount)
-                                                    .frame(width: 80)
-                                            }
-                                        }
-                                    } else {
-                                        HStack {
-                                            Text("Percentage")
-                                                .font(.system(.body, design: .rounded))
-                                                .foregroundStyle(.secondary)
-                                            Spacer()
-                                            HStack(spacing: 4) {
-                                                TextField("0", text: $percentText)
-                                                    .font(.system(.body, design: .rounded, weight: .semibold))
-                                                    .multilineTextAlignment(.trailing)
-                                                    .keyboardType(.decimalPad)
-                                                    .focused($focusedField, equals: .percent)
-                                                    .frame(width: 60)
-                                                Text("%")
-                                                    .foregroundStyle(.secondary)
-                                                    .font(.system(.body, design: .rounded))
-                                            }
-                                        }
+                                    Divider().overlay(Color.white.opacity(0.06))
+                                }
 
-                                        // Computed dollar preview
-                                        if let preview = computedPreview {
-                                            HStack {
-                                                Text("Equals")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.secondary)
-                                                Spacer()
-                                                Text(preview)
-                                                    .font(.system(.caption, design: .rounded, weight: .semibold))
-                                                    .foregroundStyle(Color.splitTeal)
-                                            }
-                                            .padding(.top, 2)
-                                        } else if !percentText.isEmpty {
-                                            HStack {
-                                                Spacer()
-                                                Text(baseAmount > 0 ? "Enter a valid %" : "No subtotal yet")
-                                                    .font(.caption2)
-                                                    .foregroundStyle(.secondary)
-                                            }
+                                if inputMode == .dollar || !supportsPct {
+                                    HStack {
+                                        Text("Amount")
+                                            .font(.system(.body, design: .rounded))
+                                            .foregroundStyle(.secondary)
+                                        Spacer()
+                                        HStack(spacing: 0) {
+                                            Text("$")
+                                                .foregroundStyle(.secondary)
+                                                .font(.system(.body, design: .rounded, weight: .semibold))
+                                            TextField("0.00", text: $amountText)
+                                                .font(.system(.body, design: .rounded, weight: .semibold))
+                                                .multilineTextAlignment(.trailing)
+                                                .keyboardType(.decimalPad)
+                                                .focused($focusedField, equals: .amount)
+                                                .frame(width: 80)
+                                        }
+                                    }
+                                } else {
+                                    HStack {
+                                        Text("Percentage")
+                                            .font(.system(.body, design: .rounded))
+                                            .foregroundStyle(.secondary)
+                                        Spacer()
+                                        HStack(spacing: 4) {
+                                            TextField("0", text: $percentText)
+                                                .font(.system(.body, design: .rounded, weight: .semibold))
+                                                .multilineTextAlignment(.trailing)
+                                                .keyboardType(.decimalPad)
+                                                .focused($focusedField, equals: .percent)
+                                                .frame(width: 60)
+                                            Text("%")
+                                                .foregroundStyle(.secondary)
+                                                .font(.system(.body, design: .rounded))
+                                        }
+                                    }
+
+                                    if let preview = computedPreview {
+                                        HStack {
+                                            Text("Equals")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                            Spacer()
+                                            Text(preview)
+                                                .font(.system(.caption, design: .rounded, weight: .semibold))
+                                                .foregroundStyle(Color.splitAccent)
+                                        }
+                                        .padding(.top, 2)
+                                    } else if !percentText.isEmpty {
+                                        HStack {
+                                            Spacer()
+                                            Text(baseAmount > 0 ? "Enter a valid %" : "No subtotal yet")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
                                         }
                                     }
                                 }
                             }
-
-                            // Category card
-                            GlassCard(padding: 16) {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text("Category")
-                                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                                        .foregroundStyle(.secondary)
-
-                                    LazyVGrid(
-                                        columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
-                                        spacing: 10
-                                    ) {
-                                        ForEach(LineItemCategory.allCases) { cat in
-                                            categoryChip(cat)
-                                        }
-                                    }
-                                    .onChange(of: category) { _, newCat in
-                                        let def = newCat.defaultName
-                                        if !def.isEmpty { name = def }
-                                    }
-                                }
-                            }
-
-                            Spacer(minLength: 20)
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 20)
+
+                        GlassCard(padding: 16) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Category")
+                                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+
+                                LazyVGrid(
+                                    columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
+                                    spacing: 10
+                                ) {
+                                    ForEach(LineItemCategory.allCases) { cat in
+                                        categoryChip(cat)
+                                    }
+                                }
+                                .onChange(of: category) { _, newCat in
+                                    let def = newCat.defaultName
+                                    if !def.isEmpty { name = def }
+                                }
+                            }
+                        }
+
+                        Spacer(minLength: 20)
                     }
-                    .scrollDismissesKeyboard(.interactively)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+                }
+                .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle("Add Item")
             .navigationBarTitleDisplayMode(.inline)
@@ -201,17 +195,10 @@ struct AddLineItemSheet: View {
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(canSave ? Color.splitBg : Color.secondary)
+                            .foregroundStyle(canSave ? .black.opacity(0.8) : Color.secondary)
                             .frame(width: 28, height: 28)
                             .background(
-                                Circle().fill(
-                                    canSave
-                                    ? AnyShapeStyle(LinearGradient(
-                                        colors: [Color.splitTeal, Color.splitAccent],
-                                        startPoint: .leading,
-                                        endPoint: .trailing))
-                                    : AnyShapeStyle(Color.white.opacity(0.15))
-                                )
+                                Circle().fill(canSave ? Color.splitAccent : Color.white.opacity(0.1))
                             )
                     }
                     .disabled(!canSave)
@@ -226,7 +213,6 @@ struct AddLineItemSheet: View {
         return Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 category = cat
-                // Reset to dollar mode if switching to food
                 if cat == .food { inputMode = .dollar }
             }
         } label: {
@@ -236,14 +222,16 @@ struct AddLineItemSheet: View {
                 Text(cat.rawValue)
                     .font(.caption2)
             }
-            .foregroundStyle(selected ? Color.splitBg : .primary)
+            .foregroundStyle(selected ? .black.opacity(0.8) : .primary)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(selected
-                          ? AnyShapeStyle(LinearGradient(colors: [Color.splitTeal, Color.splitAccent], startPoint: .leading, endPoint: .trailing))
-                          : AnyShapeStyle(.regularMaterial))
+                    .fill(selected ? Color.splitAccent : Color.white.opacity(0.04))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(selected ? Color.clear : Color.white.opacity(0.06), lineWidth: 1)
+                    )
             )
         }
         .buttonStyle(.plain)
@@ -255,7 +243,6 @@ struct AddLineItemSheet: View {
         guard let amt = computedAmount else { return }
         let finalAmount = category == .discount ? (amt > 0 ? -amt : amt) : amt
 
-        // Always store percentage: use entered % directly, or back-compute from dollar amount
         let pct: Decimal?
         if category != .food {
             if inputMode == .percentage, let p = Decimal(string: percentText), p > 0 {

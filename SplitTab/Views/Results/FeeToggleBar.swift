@@ -11,8 +11,8 @@ struct FeeToggleBar: View {
         }
         .background(
             Capsule()
-                .fill(.regularMaterial)
-                .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+                .fill(Color.white.opacity(0.04))
+                .overlay(Capsule().strokeBorder(Color.white.opacity(0.06), lineWidth: 1))
         )
     }
 
@@ -29,15 +29,12 @@ struct FeeToggleBar: View {
                 Text(option.rawValue)
                     .font(.system(.caption, design: .rounded, weight: .semibold))
             }
-            .foregroundStyle(selected ? Color.splitBg : .primary)
+            .foregroundStyle(selected ? .black.opacity(0.8) : .primary)
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity)
             .background(
-                Capsule()
-                    .fill(selected
-                          ? AnyShapeStyle(LinearGradient(colors: [Color.splitTeal, Color.splitAccent], startPoint: .leading, endPoint: .trailing))
-                          : AnyShapeStyle(Color.clear))
+                Capsule().fill(selected ? Color.splitAccent : Color.clear)
             )
         }
         .buttonStyle(.plain)

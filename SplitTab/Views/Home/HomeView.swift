@@ -21,16 +21,15 @@ struct HomeView: View {
         NavigationStack(path: $session.navigationPath) {
             ZStack {
                 Color.splitBg.ignoresSafeArea()
-                backgroundGradient
 
                 VStack(spacing: 0) {
                     Spacer()
                     heroSection
                     Spacer()
                     actionCards
-                    Spacer(minLength: 48)
+                    Spacer(minLength: 52)
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 24)
             }
             .navigationBarHidden(true)
             .navigationDestination(for: SplitTabRoute.self) { route in
@@ -56,7 +55,7 @@ struct HomeView: View {
         .environment(session)
         .preferredColorScheme(.dark)
         .onAppear {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1)) {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.85).delay(0.1)) {
                 appeared = true
             }
         }
@@ -64,75 +63,37 @@ struct HomeView: View {
 
     // MARK: - Subviews
 
-    private var backgroundGradient: some View {
-        ZStack {
-            // Top-left glow
-            Circle()
-                .fill(Color.splitTeal.opacity(0.08))
-                .frame(width: 300, height: 300)
-                .blur(radius: 80)
-                .offset(x: -80, y: -200)
-
-            // Bottom-right glow
-            Circle()
-                .fill(Color.splitAccent.opacity(0.06))
-                .frame(width: 250, height: 250)
-                .blur(radius: 70)
-                .offset(x: 100, y: 300)
-        }
-        .ignoresSafeArea()
-    }
-
     private var heroSection: some View {
         VStack(spacing: 20) {
             ZStack {
-                // Outer ring
                 Circle()
-                    .stroke(
-                        LinearGradient(
-                            colors: [Color.splitTeal.opacity(0.4), Color.splitAccent.opacity(0.2)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 2
-                    )
-                    .frame(width: 110, height: 110)
-
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.splitTeal, Color.splitAccent],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 88, height: 88)
-                    .shadow(color: Color.splitTeal.opacity(0.35), radius: 28, y: 8)
+                    .fill(Color.splitAccent)
+                    .frame(width: 80, height: 80)
 
                 Image(systemName: "doc.text.viewfinder")
-                    .font(.system(size: 36, weight: .medium))
-                    .foregroundStyle(.black.opacity(0.8))
+                    .font(.system(size: 34, weight: .medium))
+                    .foregroundStyle(.black.opacity(0.75))
             }
             .scaleEffect(appeared ? 1 : 0.5)
             .opacity(appeared ? 1 : 0)
 
-            VStack(spacing: 8) {
+            VStack(spacing: 6) {
                 Text("SplitTab")
-                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                    .font(.system(size: 38, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
 
                 Text("Split bills the smart way")
-                    .font(.system(.body, design: .rounded))
+                    .font(.system(.callout, design: .rounded))
                     .foregroundStyle(.secondary)
             }
             .opacity(appeared ? 1 : 0)
-            .offset(y: appeared ? 0 : 16)
+            .offset(y: appeared ? 0 : 12)
         }
     }
 
     private var actionCards: some View {
-        VStack(spacing: 12) {
-            // Scan receipt — primary action
+        VStack(spacing: 10) {
+            // Scan receipt — primary
             Button {
                 showScanner = true
             } label: {
@@ -140,7 +101,7 @@ struct HomeView: View {
                     icon: "camera.viewfinder",
                     title: "Scan Receipt",
                     subtitle: "Take a photo of your receipt",
-                    gradient: true
+                    isPrimary: true
                 )
             }
             .buttonStyle(.plain)
@@ -152,7 +113,7 @@ struct HomeView: View {
                     icon: "photo.on.rectangle.angled",
                     title: isProcessingPhoto ? "Processing..." : "Choose Photo",
                     subtitle: "Select from your photo library",
-                    gradient: false,
+                    isPrimary: false,
                     showSpinner: isProcessingPhoto
                 )
             }
@@ -168,76 +129,64 @@ struct HomeView: View {
                     icon: "square.and.pencil",
                     title: "Manual Entry",
                     subtitle: "Enter items by hand",
-                    gradient: false
+                    isPrimary: false
                 )
             }
             .buttonStyle(.plain)
             .disabled(isProcessingPhoto)
         }
         .opacity(appeared ? 1 : 0)
-        .offset(y: appeared ? 0 : 24)
+        .offset(y: appeared ? 0 : 20)
     }
 
     private func actionRow(
         icon: String,
         title: String,
         subtitle: String,
-        gradient: Bool,
+        isPrimary: Bool,
         showSpinner: Bool = false
     ) -> some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 14) {
             ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(
-                        gradient
-                        ? AnyShapeStyle(LinearGradient(
-                            colors: [Color.splitTeal, Color.splitAccent],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing))
-                        : AnyShapeStyle(Color.white.opacity(0.08))
-                    )
-                    .frame(width: 48, height: 48)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isPrimary ? Color.splitAccent : Color.white.opacity(0.06))
+                    .frame(width: 44, height: 44)
 
                 if showSpinner {
                     ProgressView()
-                        .tint(gradient ? .black : .white)
+                        .tint(isPrimary ? .black : .white)
                         .scaleEffect(0.8)
                 } else {
                     Image(systemName: icon)
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(gradient ? .black.opacity(0.8) : .white)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(isPrimary ? .black.opacity(0.75) : .white)
                 }
             }
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(.body, design: .rounded, weight: .semibold))
                     .foregroundStyle(.white)
 
                 Text(subtitle)
-                    .font(.system(.caption, design: .rounded))
+                    .font(.system(.caption2, design: .rounded))
                     .foregroundStyle(.secondary)
             }
 
             Spacer()
 
             Image(systemName: "chevron.right")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.tertiary)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.white.opacity(0.2))
         }
-        .padding(16)
+        .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(.ultraThinMaterial)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.white.opacity(0.04))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .strokeBorder(
-                            gradient
-                            ? AnyShapeStyle(LinearGradient(
-                                colors: [Color.splitTeal.opacity(0.4), Color.splitAccent.opacity(0.2)],
-                                startPoint: .leading,
-                                endPoint: .trailing))
-                            : AnyShapeStyle(Color.white.opacity(0.08)),
+                            isPrimary ? Color.splitAccent.opacity(0.3) : Color.white.opacity(0.06),
                             lineWidth: 1
                         )
                 )

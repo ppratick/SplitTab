@@ -11,23 +11,12 @@ struct SplitSetupView: View {
     var body: some View {
         ZStack {
             Color.splitBg.ignoresSafeArea()
-            LinearGradient(
-                colors: [Color.splitAccent.opacity(0.07), Color.clear],
-                startPoint: .top, endPoint: .center
-            ).ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: 20) {
-
-                    // Split mode picker
                     splitModeCard
-
-                    // People section
                     peopleSection
-
-                    // Continue button
                     continueButton
-
                     Spacer(minLength: 40)
                 }
                 .padding(.horizontal, 20)
@@ -74,15 +63,15 @@ struct SplitSetupView: View {
             VStack(spacing: 10) {
                 Image(systemName: mode.systemImage)
                     .font(.system(size: 26, weight: .medium))
-                    .foregroundStyle(selected ? Color.splitBg : Color.splitTeal)
+                    .foregroundStyle(selected ? .black.opacity(0.75) : Color.splitAccent)
 
                 Text(mode.rawValue)
                     .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                    .foregroundStyle(selected ? Color.splitBg : .primary)
+                    .foregroundStyle(selected ? .black.opacity(0.8) : .primary)
 
                 Text(mode.description)
                     .font(.caption2)
-                    .foregroundStyle(selected ? Color.splitBg.opacity(0.7) : .secondary)
+                    .foregroundStyle(selected ? .black.opacity(0.5) : .secondary)
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
@@ -90,12 +79,10 @@ struct SplitSetupView: View {
             .padding(.horizontal, 12)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(selected
-                          ? AnyShapeStyle(LinearGradient(colors: [Color.splitTeal, Color.splitAccent], startPoint: .topLeading, endPoint: .bottomTrailing))
-                          : AnyShapeStyle(.regularMaterial))
+                    .fill(selected ? Color.splitAccent : Color.white.opacity(0.04))
                     .overlay(
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .strokeBorder(selected ? Color.clear : Color.white.opacity(0.12), lineWidth: 1)
+                            .strokeBorder(selected ? Color.clear : Color.white.opacity(0.08), lineWidth: 1)
                     )
             )
         }
@@ -127,7 +114,7 @@ struct SplitSetupView: View {
                         .padding(.vertical, 12)
 
                         if idx < session.people.count - 1 {
-                            Divider().overlay(Color.white.opacity(0.07)).padding(.leading, 70)
+                            Divider().overlay(Color.white.opacity(0.06)).padding(.leading, 70)
                         }
                     }
                 }
@@ -147,7 +134,7 @@ struct SplitSetupView: View {
                 Text("Add Person")
             }
             .font(.system(.caption, design: .rounded, weight: .semibold))
-            .foregroundStyle(session.people.count < 8 ? Color.splitTeal : Color.secondary)
+            .foregroundStyle(session.people.count < 8 ? Color.splitAccent : Color.secondary)
         }
         .buttonStyle(.plain)
         .disabled(session.people.count >= 8)
@@ -168,16 +155,11 @@ struct SplitSetupView: View {
                 Image(systemName: session.splitMode == .even ? "equal.circle.fill" : "arrow.right")
             }
             .font(.system(.body, design: .rounded, weight: .semibold))
-            .foregroundStyle(canContinue ? Color.splitBg : Color.secondary)
+            .foregroundStyle(canContinue ? .black.opacity(0.8) : Color.secondary)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 18)
             .background(
-                Capsule()
-                    .fill(
-                        canContinue
-                        ? AnyShapeStyle(LinearGradient(colors: [Color.splitTeal, Color.splitAccent], startPoint: .leading, endPoint: .trailing))
-                        : AnyShapeStyle(Color.white.opacity(0.1))
-                    )
+                Capsule().fill(canContinue ? Color.splitAccent : Color.white.opacity(0.08))
             )
         }
         .buttonStyle(.plain)

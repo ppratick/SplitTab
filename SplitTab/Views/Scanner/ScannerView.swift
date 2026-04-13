@@ -34,8 +34,6 @@ struct ScannerView: View {
                 unavailableView
             }
 
-            // Frozen frame — sits above camera, below all UI.
-            // Wrapped in Color.clear so the image never affects ZStack sizing.
             if frozenFrame != nil {
                 Color.clear
                     .ignoresSafeArea()
@@ -48,10 +46,8 @@ struct ScannerView: View {
                     .ignoresSafeArea()
             }
 
-            // Corner bracket overlay
             receiptGuideOverlay
 
-            // Top bar
             VStack {
                 topBar
                 Spacer()
@@ -114,19 +110,10 @@ struct ScannerView: View {
             } label: {
                 Label("Use This Scan", systemImage: "checkmark.circle.fill")
                     .font(.system(.body, design: .rounded, weight: .semibold))
-                    .foregroundStyle(Color.splitBg)
+                    .foregroundStyle(.black.opacity(0.8))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 18)
-                    .background(
-                        Capsule()
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.splitTeal, Color.splitAccent],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                    )
+                    .background(Capsule().fill(Color.splitAccent))
             }
             .buttonStyle(.plain)
             .disabled(isProcessing)
@@ -158,28 +145,24 @@ struct ScannerView: View {
                     )
 
                 Path { path in
-                    // Top-left
                     path.move(to: CGPoint(x: x, y: y + arm))
                     path.addLine(to: CGPoint(x: x, y: y + r))
                     path.addQuadCurve(to: CGPoint(x: x + r, y: y), control: CGPoint(x: x, y: y))
                     path.addLine(to: CGPoint(x: x + arm, y: y))
-                    // Top-right
                     path.move(to: CGPoint(x: x + w - arm, y: y))
                     path.addLine(to: CGPoint(x: x + w - r, y: y))
                     path.addQuadCurve(to: CGPoint(x: x + w, y: y + r), control: CGPoint(x: x + w, y: y))
                     path.addLine(to: CGPoint(x: x + w, y: y + arm))
-                    // Bottom-right
                     path.move(to: CGPoint(x: x + w, y: y + h - arm))
                     path.addLine(to: CGPoint(x: x + w, y: y + h - r))
                     path.addQuadCurve(to: CGPoint(x: x + w - r, y: y + h), control: CGPoint(x: x + w, y: y + h))
                     path.addLine(to: CGPoint(x: x + w - arm, y: y + h))
-                    // Bottom-left
                     path.move(to: CGPoint(x: x + arm, y: y + h))
                     path.addLine(to: CGPoint(x: x + r, y: y + h))
                     path.addQuadCurve(to: CGPoint(x: x, y: y + h - r), control: CGPoint(x: x, y: y + h))
                     path.addLine(to: CGPoint(x: x, y: y + h - arm))
                 }
-                .stroke(Color.splitTeal, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .stroke(Color.splitAccent.opacity(0.7), style: StrokeStyle(lineWidth: 3, lineCap: .round))
             }
         }
     }

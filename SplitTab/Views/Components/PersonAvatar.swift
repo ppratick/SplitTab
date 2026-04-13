@@ -9,7 +9,7 @@ struct PersonAvatar: View {
         VStack(spacing: 4) {
             ZStack {
                 Circle()
-                    .fill(person.avatarColor.gradient)
+                    .fill(person.avatarColor)
                     .frame(width: size, height: size)
                 Text(initials)
                     .font(.system(size: size * 0.38, weight: .bold, design: .rounded))
@@ -34,7 +34,6 @@ struct PersonAvatar: View {
     }
 }
 
-// Stacked overlapping avatars (e.g., showing assignees on an item row)
 struct StackedAvatars: View {
     let people: [Person]
     var size: CGFloat = 26
@@ -48,7 +47,7 @@ struct StackedAvatars: View {
             ZStack {
                 ForEach(Array(visible.enumerated()), id: \.element.id) { idx, person in
                     Circle()
-                        .fill(person.avatarColor.gradient)
+                        .fill(person.avatarColor)
                         .frame(width: size, height: size)
                         .overlay(Circle().strokeBorder(Color.splitBg, lineWidth: 1.5))
                         .offset(x: CGFloat(idx) * (size * 0.55))
@@ -56,7 +55,7 @@ struct StackedAvatars: View {
                 if overflow > 0 {
                     ZStack {
                         Circle()
-                            .fill(Color.white.opacity(0.15))
+                            .fill(Color.white.opacity(0.12))
                             .frame(width: size, height: size)
                             .overlay(Circle().strokeBorder(Color.splitBg, lineWidth: 1.5))
                         Text("+\(overflow)")

@@ -9,7 +9,6 @@ struct PersonResultCard: View {
     var body: some View {
         GlassCard(padding: 0) {
             VStack(spacing: 0) {
-                // Header row
                 HStack(spacing: 14) {
                     PersonAvatar(person: fakePerson, size: 44)
 
@@ -44,7 +43,7 @@ struct PersonResultCard: View {
                     } label: {
                         Image(systemName: copied ? "checkmark" : "doc.on.doc.fill")
                             .font(.system(size: 13))
-                            .foregroundStyle(copied ? Color.splitTeal : Color.secondary)
+                            .foregroundStyle(copied ? Color.splitAccent : Color.secondary)
                             .frame(width: 30, height: 30)
                             .glassEffect(.regular.interactive(), in: Circle())
                     }
@@ -64,9 +63,8 @@ struct PersonResultCard: View {
                     }
                 }
 
-                // Expanded breakdown
                 if isExpanded {
-                    Divider().overlay(Color.white.opacity(0.08))
+                    Divider().overlay(Color.white.opacity(0.06))
                     breakdownSection
                 }
             }
@@ -77,7 +75,6 @@ struct PersonResultCard: View {
 
     private var breakdownSection: some View {
         VStack(spacing: 0) {
-            // Assigned items (only in itemized mode)
             if splitMode == .itemized && !result.assignedItems.isEmpty {
                 VStack(spacing: 0) {
                     sectionHeader("Items", color: Color.splitAccent)
@@ -91,24 +88,20 @@ struct PersonResultCard: View {
                 }
             }
 
-            Divider().overlay(Color.white.opacity(0.06)).padding(.horizontal, 18)
+            Divider().overlay(Color.white.opacity(0.05)).padding(.horizontal, 18)
 
-            // Subtotal
             breakdownRow(label: "Subtotal", amount: result.foodSubtotal, bold: true)
 
-            // Fee share
             if result.feeShare != 0 {
                 breakdownRow(label: "Tax & Fees", amount: result.feeShare, color: Color.splitWarn)
             }
 
-            // Discount share
             if result.discountShare != 0 {
                 breakdownRow(label: "Discounts", amount: result.discountShare, color: Color.splitAccent)
             }
 
-            Divider().overlay(Color.white.opacity(0.12)).padding(.horizontal, 18)
+            Divider().overlay(Color.white.opacity(0.08)).padding(.horizontal, 18)
 
-            // Total
             HStack {
                 Text("Total")
                     .font(.system(.body, design: .rounded, weight: .bold))
@@ -148,7 +141,6 @@ struct PersonResultCard: View {
         .padding(.vertical, 6)
     }
 
-    // Build a fake Person to drive the avatar color
     private var fakePerson: Person {
         Person(id: result.id, name: result.name, colorIndex: result.avatarColorIndex)
     }

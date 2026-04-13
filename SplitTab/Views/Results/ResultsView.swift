@@ -10,20 +10,16 @@ struct ResultsView: View {
     var body: some View {
         ZStack {
             Color.splitBg.ignoresSafeArea()
-            backgroundGradient
 
             if let result {
                 ScrollView {
                     VStack(spacing: 20) {
-                        // Grand total hero
                         totalHeroCard(result: result)
 
-                        // Meal subtotal / total breakdown
                         if let receipt {
                             mealBreakdownCard(receipt: receipt)
                         }
 
-                        // Fee distribution toggle (only for itemized)
                         if result.splitMode == .itemized {
                             feeToggleSection
                             if let receipt, !receipt.discounts.isEmpty {
@@ -31,18 +27,15 @@ struct ResultsView: View {
                             }
                         }
 
-                        // Unassigned items warning
                         if !result.unassignedItems.isEmpty {
                             unassignedWarning(items: result.unassignedItems)
                         }
 
-                        // Per-person cards
                         ForEach(result.personResults) { personResult in
                             PersonResultCard(result: personResult, splitMode: result.splitMode)
                                 .transition(.scale(scale: 0.95).combined(with: .opacity))
                         }
 
-                        // Start over
                         startOverButton
 
                         Spacer(minLength: 40)
@@ -51,7 +44,6 @@ struct ResultsView: View {
                     .padding(.top, 16)
                 }
             } else {
-                // Fallback — shouldn't normally be reached
                 VStack(spacing: 16) {
                     ProgressView()
                     Text("Calculating…")
@@ -77,15 +69,6 @@ struct ResultsView: View {
 
     // MARK: - Subviews
 
-    private var backgroundGradient: some View {
-        LinearGradient(
-            colors: [Color.splitTeal.opacity(0.1), Color.splitAccent.opacity(0.06), Color.clear],
-            startPoint: .topLeading,
-            endPoint: .center
-        )
-        .ignoresSafeArea()
-    }
-
     private func totalHeroCard(result: SplitResult) -> some View {
         GlassHeroCard {
             VStack(alignment: .leading, spacing: 12) {
@@ -98,10 +81,10 @@ struct ResultsView: View {
                             HStack(alignment: .firstTextBaseline, spacing: 1) {
                                 Text("$")
                                     .font(.system(size: 26, weight: .bold, design: .rounded))
-                                    .foregroundStyle(Color.splitTeal)
+                                    .foregroundStyle(Color.splitAccent)
                                 Text(total.digitsString)
                                     .font(.system(size: 46, weight: .bold, design: .rounded))
-                                    .foregroundStyle(Color.splitTeal)
+                                    .foregroundStyle(Color.splitAccent)
                                     .monospacedDigit()
                             }
                         }
@@ -112,7 +95,6 @@ struct ResultsView: View {
 
                     Spacer()
 
-                    // People summary
                     VStack(alignment: .trailing, spacing: 6) {
                         Text("\(result.personResults.count)")
                             .font(.system(size: 32, weight: .bold, design: .rounded))
@@ -123,11 +105,10 @@ struct ResultsView: View {
                     }
                 }
 
-                // Avatar strip
                 HStack(spacing: -8) {
                     ForEach(result.personResults.prefix(6)) { person in
                         Circle()
-                            .fill(Person.palette[person.avatarColorIndex % Person.palette.count].gradient)
+                            .fill(Person.palette[person.avatarColorIndex % Person.palette.count])
                             .frame(width: 28, height: 28)
                             .overlay(Circle().strokeBorder(Color.splitBg, lineWidth: 2))
                     }
@@ -184,10 +165,10 @@ struct ResultsView: View {
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.splitWarn.opacity(0.1))
+                .fill(Color.splitWarn.opacity(0.08))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(Color.splitWarn.opacity(0.25), lineWidth: 1)
+                        .strokeBorder(Color.splitWarn.opacity(0.2), lineWidth: 1)
                 )
         )
     }
@@ -202,11 +183,10 @@ struct ResultsView: View {
                 }
 
                 if receipt.discountTotal != 0 {
-                    breakdownRow("Discounts", amount: receipt.discountTotal,
-                                 color: Color(red: 0.55, green: 0.90, blue: 0.46))
+                    breakdownRow("Discounts", amount: receipt.discountTotal, color: Color.splitAccent)
                 }
 
-                Divider().overlay(Color.white.opacity(0.1))
+                Divider().overlay(Color.white.opacity(0.08))
 
                 HStack {
                     Text("Total")
@@ -215,10 +195,10 @@ struct ResultsView: View {
                     HStack(alignment: .firstTextBaseline, spacing: 1) {
                         Text("$")
                             .font(.system(size: 13, weight: .bold, design: .rounded))
-                            .foregroundStyle(Color.splitTeal)
+                            .foregroundStyle(Color.splitAccent)
                         Text(receipt.grandTotal.digitsString)
                             .font(.system(.body, design: .rounded, weight: .bold))
-                            .foregroundStyle(Color.splitTeal)
+                            .foregroundStyle(Color.splitAccent)
                             .monospacedDigit()
                     }
                 }
@@ -249,7 +229,7 @@ struct ResultsView: View {
                 .padding(.vertical, 16)
                 .background(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.white.opacity(0.07))
+                        .fill(Color.white.opacity(0.05))
                 )
         }
         .buttonStyle(.plain)

@@ -3,7 +3,6 @@ import SwiftUI
 struct LineItemRow: View {
     let item: LineItem
     var baseAmount: Decimal = 0
-    /// Shared across all rows — whichever item's ID is set is the one in edit mode.
     @Binding var editingItemID: UUID?
     var onUpdate: (LineItem) -> Void
     var onDelete: () -> Void
@@ -32,14 +31,12 @@ struct LineItemRow: View {
 
     private var canCommit: Bool { !editName.isEmpty && computedEditAmount != nil }
 
-    /// Live percentage shown while typing in dollar mode — updates on every keystroke.
     private var livePercentPreview: String? {
         guard supportsPct, baseAmount > 0 else { return nil }
         if let amt = Decimal(string: editAmountText), amt != 0 {
             let pct = Decimal.roundToTwo(abs(amt) / baseAmount * 100)
             return "\(pct.digitsString)%"
         }
-        // Fall back to stored percentage before the user starts typing
         return item.sourcePercent.map { "\($0.digitsString)%" }
     }
 
@@ -53,7 +50,6 @@ struct LineItemRow: View {
                 displayRow
             }
         }
-        // When a different item becomes active, auto-save this one
         .onChange(of: editingItemID) { oldValue, newValue in
             if oldValue == item.id, newValue != item.id {
                 saveCurrentEdit()
@@ -69,7 +65,7 @@ struct LineItemRow: View {
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(categoryColor)
                 .frame(width: 28, height: 28)
-                .background(Circle().fill(categoryColor.opacity(0.15)))
+                .background(Circle().fill(categoryColor.opacity(0.12)))
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
@@ -107,7 +103,7 @@ struct LineItemRow: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.secondary)
                     .frame(width: 30, height: 30)
-                    .background(Circle().fill(Color.white.opacity(0.07)))
+                    .background(Circle().fill(Color.white.opacity(0.05)))
             }
             .buttonStyle(.plain)
         }
@@ -119,14 +115,12 @@ struct LineItemRow: View {
 
     private var editingRow: some View {
         VStack(spacing: 14) {
-
-            // Tappable header — tap to save & collapse
             HStack(spacing: 10) {
                 Image(systemName: item.category.systemImage)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(categoryColor)
                     .frame(width: 28, height: 28)
-                    .background(Circle().fill(categoryColor.opacity(0.15)))
+                    .background(Circle().fill(categoryColor.opacity(0.12)))
                 Text(editName.isEmpty ? item.name : editName)
                     .font(.system(.subheadline, design: .rounded, weight: .medium))
                     .foregroundStyle(.secondary)
@@ -139,9 +133,8 @@ struct LineItemRow: View {
             .contentShape(Rectangle())
             .onTapGesture { commitEdit() }
 
-            Divider().overlay(Color.white.opacity(0.1))
+            Divider().overlay(Color.white.opacity(0.06))
 
-            // Name
             HStack {
                 Text("Name")
                     .font(.caption)
@@ -153,9 +146,8 @@ struct LineItemRow: View {
                     .multilineTextAlignment(.trailing)
             }
 
-            Divider().overlay(Color.white.opacity(0.1))
+            Divider().overlay(Color.white.opacity(0.06))
 
-            // $ / % toggle for non-food
             if supportsPct {
                 Picker("Input", selection: $editInputMode) {
                     Text("$ Fixed").tag(EditInputMode.dollar)
@@ -165,13 +157,11 @@ struct LineItemRow: View {
                 .onChange(of: editInputMode) { _, newMode in
                     switch newMode {
                     case .dollar:
-                        // Auto-fill dollar from current percent
                         if let pct = Decimal(string: editPercentText), pct > 0, baseAmount > 0 {
                             let v = Decimal.roundToTwo(baseAmount * pct / 100)
                             editAmountText = NSDecimalNumber(decimal: v).stringValue
                         }
                     case .percentage:
-                        // Auto-fill percent from current dollar
                         if let amt = Decimal(string: editAmountText), amt != 0, baseAmount > 0 {
                             let v = Decimal.roundToTwo(abs(amt) / baseAmount * 100)
                             editPercentText = NSDecimalNumber(decimal: v).stringValue
@@ -179,10 +169,9 @@ struct LineItemRow: View {
                     }
                 }
 
-                Divider().overlay(Color.white.opacity(0.1))
+                Divider().overlay(Color.white.opacity(0.06))
             }
 
-            // Amount or percent field
             if editInputMode == .dollar || !supportsPct {
                 HStack {
                     Text("Amount")
@@ -201,13 +190,12 @@ struct LineItemRow: View {
                             .frame(width: 90)
                     }
                 }
-                // Live percentage — updates as the user types the dollar amount
                 if let preview = livePercentPreview {
                     HStack {
                         Spacer()
                         Text("\(preview) of subtotal")
                             .font(.caption2)
-                            .foregroundStyle(Color.splitTeal.opacity(0.8))
+                            .foregroundStyle(Color.splitAccent.opacity(0.7))
                             .animation(.default, value: preview)
                     }
                 }
@@ -235,14 +223,13 @@ struct LineItemRow: View {
                         Spacer()
                         Text("= \(preview.currencyString)")
                             .font(.caption)
-                            .foregroundStyle(Color.splitTeal)
+                            .foregroundStyle(Color.splitAccent)
                     }
                 }
             }
 
-            Divider().overlay(Color.white.opacity(0.1))
+            Divider().overlay(Color.white.opacity(0.06))
 
-            // Action buttons
             HStack(spacing: 10) {
                 Button {
                     cancelEdit()
@@ -261,18 +248,11 @@ struct LineItemRow: View {
                 } label: {
                     Text("Save")
                         .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                        .foregroundStyle(canCommit ? Color.splitBg : .secondary)
+                        .foregroundStyle(canCommit ? .black.opacity(0.8) : .secondary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 13)
                         .background(
-                            Capsule()
-                                .fill(
-                                    canCommit
-                                    ? AnyShapeStyle(LinearGradient(
-                                        colors: [Color.splitTeal, Color.splitAccent],
-                                        startPoint: .leading, endPoint: .trailing))
-                                    : AnyShapeStyle(Color.white.opacity(0.12))
-                                )
+                            Capsule().fill(canCommit ? Color.splitAccent : Color.white.opacity(0.08))
                         )
                 }
                 .buttonStyle(.plain)
@@ -288,19 +268,17 @@ struct LineItemRow: View {
         switch item.category {
         case .food:     return Color.splitAccent
         case .tax:      return Color.splitWarn
-        case .tip:      return Color(red: 1.0, green: 0.42, blue: 0.42)
-        case .fee:      return Color.splitTeal
-        case .discount: return Color(red: 0.55, green: 0.90, blue: 0.46)
+        case .tip:      return Color(red: 0.93, green: 0.46, blue: 0.46)
+        case .fee:      return Color(red: 0.56, green: 0.78, blue: 0.94)
+        case .discount: return Color.splitAccent
         case .unknown:  return .secondary
         }
     }
 
     private func handleTap() {
         if isEditing {
-            // Tap on open item → save and close
             commitEdit()
         } else {
-            // Tap on closed item → open (onChange on any other open row will auto-save it)
             beginEdit()
             editingItemID = item.id
         }
@@ -308,7 +286,6 @@ struct LineItemRow: View {
 
     private func beginEdit() {
         editName = item.name
-        // Restore percentage mode if this item was saved with one
         if let pct = item.sourcePercent, item.category != .food {
             editInputMode = .percentage
             editPercentText = pct.digitsString
@@ -320,7 +297,6 @@ struct LineItemRow: View {
         }
     }
 
-    /// Save current edit state into the model.
     private func saveCurrentEdit() {
         guard !editName.isEmpty else { return }
 
@@ -328,11 +304,9 @@ struct LineItemRow: View {
         let pct: Decimal?
 
         if editInputMode == .percentage, let p = Decimal(string: editPercentText), p > 0 {
-            // Percentage mode: compute dollar, keep exact percent
             rawAmt = Decimal.roundToTwo(baseAmount * p / 100)
             pct = p
         } else if let a = Decimal(string: editAmountText), a != 0 {
-            // Dollar mode: always back-compute percentage so it's never lost
             rawAmt = a
             pct = (supportsPct && baseAmount > 0)
                 ? Decimal.roundToTwo(abs(a) / baseAmount * 100)
@@ -349,13 +323,11 @@ struct LineItemRow: View {
         onUpdate(updated)
     }
 
-    /// Save and close this row.
     private func commitEdit() {
         saveCurrentEdit()
         editingItemID = nil
     }
 
-    /// Discard changes and close — reset fields to original so the onChange auto-save is a no-op.
     private func cancelEdit() {
         editName = item.name
         editAmountText = NSDecimalNumber(decimal: abs(item.amount)).stringValue

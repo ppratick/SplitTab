@@ -10,42 +10,32 @@ struct ReceiptReviewView: View {
     var body: some View {
         ZStack {
             Color.splitBg.ignoresSafeArea()
-            backgroundGradient
 
             ScrollView {
                 VStack(spacing: 16) {
-                    // Totals summary card
                     summaryCard
 
-                    // Discrepancy warning
                     if let discrepancy = receipt.totalDiscrepancy {
                         discrepancyBanner(discrepancy: discrepancy)
                     }
 
-                    // Food items section
                     if !receipt.items.isEmpty {
                         itemSection(title: "Items", items: receipt.items, color: Color.splitAccent)
                     }
 
-                    // Surcharges section
                     if !receipt.surcharges.isEmpty {
                         itemSection(title: "Tax & Fees", items: receipt.surcharges, color: Color.splitWarn)
                     }
 
-                    // Discounts section
                     if !receipt.discounts.isEmpty {
-                        itemSection(title: "Discounts", items: receipt.discounts, color: Color(red: 0.55, green: 0.90, blue: 0.46))
+                        itemSection(title: "Discounts", items: receipt.discounts, color: Color.splitAccent)
                     }
 
-                    // Empty state
                     if receipt.items.isEmpty && receipt.surcharges.isEmpty && receipt.discounts.isEmpty {
                         emptyState
                     }
 
-                    // Add item button
                     addItemButton
-
-                    // Continue button
                     continueButton
 
                     Spacer(minLength: 40)
@@ -63,7 +53,7 @@ struct ReceiptReviewView: View {
                     session.navigate(to: .splitSetup)
                 }
                 .font(.system(.body, design: .rounded, weight: .semibold))
-                .foregroundStyle(Color.splitTeal)
+                .foregroundStyle(Color.splitAccent)
                 .disabled(receipt.items.isEmpty && receipt.surcharges.isEmpty)
             }
         }
@@ -76,15 +66,6 @@ struct ReceiptReviewView: View {
     }
 
     // MARK: - Subviews
-
-    private var backgroundGradient: some View {
-        LinearGradient(
-            colors: [Color.splitTeal.opacity(0.06), Color.clear],
-            startPoint: .top,
-            endPoint: .center
-        )
-        .ignoresSafeArea()
-    }
 
     private var summaryCard: some View {
         GlassCard {
@@ -116,7 +97,7 @@ struct ReceiptReviewView: View {
                         .foregroundStyle(.secondary)
                     CurrencyText(amount: receipt.grandTotal,
                                  font: .system(.title2, design: .rounded, weight: .bold),
-                                 color: Color.splitTeal)
+                                 color: Color.splitAccent)
                 }
             }
         }
@@ -139,10 +120,10 @@ struct ReceiptReviewView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.splitWarn.opacity(0.12))
+                .fill(Color.splitWarn.opacity(0.1))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(Color.splitWarn.opacity(0.3), lineWidth: 1)
+                        .strokeBorder(Color.splitWarn.opacity(0.25), lineWidth: 1)
                 )
         )
     }
@@ -173,7 +154,7 @@ struct ReceiptReviewView: View {
 
                         if idx < items.count - 1 {
                             Divider()
-                                .overlay(Color.white.opacity(0.07))
+                                .overlay(Color.white.opacity(0.06))
                                 .padding(.leading, 56)
                         }
                     }
@@ -206,15 +187,15 @@ struct ReceiptReviewView: View {
         } label: {
             Label("Add Item", systemImage: "plus.circle.fill")
                 .font(.system(.body, design: .rounded, weight: .medium))
-                .foregroundStyle(Color.splitTeal)
+                .foregroundStyle(Color.splitAccent)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
                 .background(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.splitTeal.opacity(0.1))
+                        .fill(Color.splitAccent.opacity(0.08))
                         .overlay(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .strokeBorder(Color.splitTeal.opacity(0.3), lineWidth: 1)
+                                .strokeBorder(Color.splitAccent.opacity(0.2), lineWidth: 1)
                         )
                 )
         }
@@ -230,19 +211,10 @@ struct ReceiptReviewView: View {
                 Image(systemName: "arrow.right")
             }
             .font(.system(.body, design: .rounded, weight: .semibold))
-            .foregroundStyle(Color.splitBg)
+            .foregroundStyle(.black.opacity(0.8))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 18)
-            .background(
-                Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.splitTeal, Color.splitAccent],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-            )
+            .background(Capsule().fill(Color.splitAccent))
         }
         .buttonStyle(.plain)
         .disabled(receipt.items.isEmpty && receipt.surcharges.isEmpty)

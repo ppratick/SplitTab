@@ -9,7 +9,7 @@ struct PersonChip: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Circle()
-                    .fill(person.avatarColor.gradient)
+                    .fill(person.avatarColor)
                     .frame(width: 22, height: 22)
                     .overlay(
                         Text(initials)
@@ -20,19 +20,17 @@ struct PersonChip: View {
                 Text(person.name)
                     .font(.system(.caption, design: .rounded, weight: .semibold))
                     .lineLimit(1)
-                    .foregroundStyle(isSelected ? Color.splitBg : .primary)
+                    .foregroundStyle(isSelected ? .black.opacity(0.8) : .primary)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(
                 Capsule()
-                    .fill(isSelected
-                          ? AnyShapeStyle(person.avatarColor.gradient)
-                          : AnyShapeStyle(.regularMaterial))
+                    .fill(isSelected ? person.avatarColor : Color.white.opacity(0.04))
                     .overlay(
                         Capsule()
                             .strokeBorder(
-                                isSelected ? Color.clear : Color.white.opacity(0.15),
+                                isSelected ? Color.clear : Color.white.opacity(0.08),
                                 lineWidth: 1
                             )
                     )

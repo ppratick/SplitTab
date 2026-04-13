@@ -9,23 +9,16 @@ struct ItemAssignmentView: View {
     var body: some View {
         ZStack {
             Color.splitBg.ignoresSafeArea()
-            LinearGradient(
-                colors: [Color(red: 0.72, green: 0.46, blue: 1.0).opacity(0.07), Color.clear],
-                startPoint: .top, endPoint: .center
-            ).ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Unassigned warning banner
                 if session.unassignedFoodItemCount > 0 {
                     unassignedBanner
                 }
 
                 ScrollView {
                     VStack(spacing: 16) {
-                        // Instructions card
                         instructionCard
 
-                        // Items
                         if !items.isEmpty {
                             GlassCard(padding: 0) {
                                 VStack(spacing: 0) {
@@ -49,7 +42,7 @@ struct ItemAssignmentView: View {
                                         )
 
                                         if idx < items.count - 1 {
-                                            Divider().overlay(Color.white.opacity(0.07))
+                                            Divider().overlay(Color.white.opacity(0.06))
                                         }
                                     }
                                 }
@@ -58,12 +51,10 @@ struct ItemAssignmentView: View {
                             emptyState
                         }
 
-                        // Surcharges info
                         if let surcharges = session.receipt?.surcharges, !surcharges.isEmpty {
                             surchargesInfo(surcharges: surcharges)
                         }
 
-                        // See Results button
                         seeResultsButton
 
                         Spacer(minLength: 40)
@@ -91,14 +82,14 @@ struct ItemAssignmentView: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
-        .background(Color.splitWarn.opacity(0.12))
+        .background(Color.splitWarn.opacity(0.1))
     }
 
     private var instructionCard: some View {
         HStack(spacing: 12) {
             Image(systemName: "hand.tap.fill")
                 .font(.system(size: 20))
-                .foregroundStyle(Color(red: 0.72, green: 0.46, blue: 1.0))
+                .foregroundStyle(Color(red: 0.68, green: 0.52, blue: 0.90))
             Text("Tap each item to select who had it. Items can be shared between multiple people.")
                 .font(.system(.caption, design: .rounded))
                 .foregroundStyle(.secondary)
@@ -108,10 +99,10 @@ struct ItemAssignmentView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color(red: 0.72, green: 0.46, blue: 1.0).opacity(0.1))
+                .fill(Color(red: 0.68, green: 0.52, blue: 0.90).opacity(0.08))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(Color(red: 0.72, green: 0.46, blue: 1.0).opacity(0.2), lineWidth: 1)
+                        .strokeBorder(Color(red: 0.68, green: 0.52, blue: 0.90).opacity(0.15), lineWidth: 1)
                 )
         )
     }
@@ -160,20 +151,11 @@ struct ItemAssignmentView: View {
                 Image(systemName: "arrow.right.circle.fill")
             }
             .font(.system(.body, design: .rounded, weight: .semibold))
-            .foregroundStyle(blocked ? Color.secondary : Color.splitBg)
+            .foregroundStyle(blocked ? Color.secondary : .black.opacity(0.8))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 18)
             .background(
-                Capsule()
-                    .fill(
-                        blocked
-                        ? AnyShapeStyle(Color.white.opacity(0.12))
-                        : AnyShapeStyle(LinearGradient(
-                            colors: [Color.splitTeal, Color.splitAccent],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        ))
-                    )
+                Capsule().fill(blocked ? Color.white.opacity(0.08) : Color.splitAccent)
             )
         }
         .buttonStyle(.plain)
