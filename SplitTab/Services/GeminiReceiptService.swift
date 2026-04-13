@@ -3,12 +3,17 @@ import UIKit
 struct OpenAIReceiptService {
 
     private static let prompt = """
-    Extract all food and drink line items from this receipt. \
+    Extract all line items from this receipt. \
     Return ONLY raw JSON with no markdown or backticks: \
-    {"items": [{"name": "item name", "price": 0.00}], "subtotal": 0.00, \
-    "tax": 0.00, "tax_pct": null, "tip": 0.00, "tip_pct": null}. \
+    {"items": [{"name": "item name", "price": 0.00}], \
+    "fees": [{"name": "fee name", "price": 0.00}], \
+    "discounts": [{"name": "discount name", "price": 0.00}], \
+    "subtotal": 0.00, "tax": 0.00, "tax_pct": null, "tip": 0.00, "tip_pct": null}. \
+    "items" = actual ordered food/drink only. \
+    "fees" = any extra charges such as delivery fee, service fee, bag fee, regulatory fee, convenience fee, or similar (use positive prices). \
+    "discounts" = any reductions such as coupons, promotions, member discounts, or credits (use positive prices — the app will negate them). \
+    If an item has a quantity greater than 1 (e.g. "2 Burger $20.00"), expand it into that many separate entries each with the per-unit price (e.g. two entries of "Burger" at $10.00 each). \
     If the receipt shows a percentage for tax or tip (e.g. "Tax 8.5% $2.16"), include it as tax_pct or tip_pct (just the number, e.g. 8.5). \
-    Only include actual ordered food/drink items with prices greater than 0. \
     Skip $0.00 modifier lines, subtotal, tax, tip, total, payment, card, \
     and tip suggestion lines like 16%-$16.84. Use English names only.
     """
@@ -97,8 +102,18 @@ struct OpenAIReceiptService {
             }
         }
 
-        // Surcharges
+        // Fees
         var surcharges: [LineItem] = []
+        if let rawFees = parsed["fees"] as? [[String: Any]] {
+            for entry in rawFees {
+                guard let name = entry["name"] as? String, !name.isEmpty,
+                      let price = doubleValue(from: entry["price"]),
+                      price > 0 else { continue }
+                surcharges.append(LineItem(name: name, amount: Decimal.roundToTwo(Decimal(price)), category: .fee))
+            }
+        }
+
+        // Tax & tip
         if let tax = doubleValue(from: parsed["tax"]), tax > 0 {
             let pct = doubleValue(from: parsed["tax_pct"]).map { Decimal($0) }
             surcharges.append(LineItem(name: "Tax", amount: Decimal.roundToTwo(Decimal(tax)), category: .tax, sourcePercent: pct))
@@ -119,13 +134,24 @@ struct OpenAIReceiptService {
             }
         }
 
+        // Discounts (API returns positive values; store as negative amounts)
+        var discounts: [LineItem] = []
+        if let rawDiscounts = parsed["discounts"] as? [[String: Any]] {
+            for entry in rawDiscounts {
+                guard let name = entry["name"] as? String, !name.isEmpty,
+                      let price = doubleValue(from: entry["price"]),
+                      price > 0 else { continue }
+                discounts.append(LineItem(name: name, amount: -Decimal.roundToTwo(Decimal(price)), category: .discount))
+            }
+        }
+
         // Use subtotal + tax + tip as the reference total so the discrepancy banner compares apples-to-apples
         let subtotalD = doubleValue(from: parsed["subtotal"]) ?? 0
         let taxD      = doubleValue(from: parsed["tax"]) ?? 0
         let tipD      = doubleValue(from: parsed["tip"]) ?? 0
         let parsedTotal: Decimal? = subtotalD > 0 ? Decimal(subtotalD + taxD + tipD) : nil
 
-        return ReceiptData(items: items, surcharges: surcharges, discounts: [], parsedTotal: parsedTotal)
+        return ReceiptData(items: items, surcharges: surcharges, discounts: discounts, parsedTotal: parsedTotal)
     }
 
     /// Safely extract a Double from either a JSON Double or Int value.
