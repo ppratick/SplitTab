@@ -145,11 +145,15 @@ struct OpenAIReceiptService {
             }
         }
 
-        // Use subtotal + tax + tip as the reference total so the discrepancy banner compares apples-to-apples
+        // Reference total: AI's subtotal + all extracted surcharges + discounts.
+        // This way the discrepancy banner fires only when the sum of individual
+        // food items diverges from the AI's claimed subtotal.
         let subtotalD = doubleValue(from: parsed["subtotal"]) ?? 0
-        let taxD      = doubleValue(from: parsed["tax"]) ?? 0
-        let tipD      = doubleValue(from: parsed["tip"]) ?? 0
-        let parsedTotal: Decimal? = subtotalD > 0 ? Decimal(subtotalD + taxD + tipD) : nil
+        let parsedTotal: Decimal? = subtotalD > 0
+            ? Decimal.roundToTwo(Decimal(subtotalD))
+              + surcharges.reduce(Decimal(0)) { $0 + $1.amount }
+              + discounts.reduce(Decimal(0)) { $0 + $1.amount }
+            : nil
 
         return ReceiptData(items: items, surcharges: surcharges, discounts: discounts, parsedTotal: parsedTotal)
     }

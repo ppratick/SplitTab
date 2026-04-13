@@ -20,7 +20,6 @@ struct HomeView: View {
     var body: some View {
         NavigationStack(path: $session.navigationPath) {
             ZStack {
-                // Background
                 Color.splitBg.ignoresSafeArea()
                 backgroundGradient
 
@@ -28,10 +27,10 @@ struct HomeView: View {
                     Spacer()
                     heroSection
                     Spacer()
-                    ctaSection
+                    actionCards
                     Spacer(minLength: 48)
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 20)
             }
             .navigationBarHidden(true)
             .navigationDestination(for: SplitTabRoute.self) { route in
@@ -66,22 +65,39 @@ struct HomeView: View {
     // MARK: - Subviews
 
     private var backgroundGradient: some View {
-        LinearGradient(
-            colors: [
-                Color.splitTeal.opacity(0.12),
-                Color.splitAccent.opacity(0.06),
-                Color.clear
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
+        ZStack {
+            // Top-left glow
+            Circle()
+                .fill(Color.splitTeal.opacity(0.08))
+                .frame(width: 300, height: 300)
+                .blur(radius: 80)
+                .offset(x: -80, y: -200)
+
+            // Bottom-right glow
+            Circle()
+                .fill(Color.splitAccent.opacity(0.06))
+                .frame(width: 250, height: 250)
+                .blur(radius: 70)
+                .offset(x: 100, y: 300)
+        }
         .ignoresSafeArea()
     }
 
     private var heroSection: some View {
-        VStack(spacing: 24) {
-            // Icon
+        VStack(spacing: 20) {
             ZStack {
+                // Outer ring
+                Circle()
+                    .stroke(
+                        LinearGradient(
+                            colors: [Color.splitTeal.opacity(0.4), Color.splitAccent.opacity(0.2)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 2
+                    )
+                    .frame(width: 110, height: 110)
+
                 Circle()
                     .fill(
                         LinearGradient(
@@ -90,22 +106,22 @@ struct HomeView: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 96, height: 96)
-                    .shadow(color: Color.splitTeal.opacity(0.4), radius: 24, y: 8)
+                    .frame(width: 88, height: 88)
+                    .shadow(color: Color.splitTeal.opacity(0.35), radius: 28, y: 8)
 
                 Image(systemName: "doc.text.viewfinder")
-                    .font(.system(size: 40, weight: .medium))
+                    .font(.system(size: 36, weight: .medium))
                     .foregroundStyle(.black.opacity(0.8))
             }
-            .scaleEffect(appeared ? 1 : 0.6)
+            .scaleEffect(appeared ? 1 : 0.5)
             .opacity(appeared ? 1 : 0)
 
             VStack(spacing: 8) {
                 Text("SplitTab")
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                    .font(.system(size: 40, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
 
-                Text("Scan a receipt, split the bill")
+                Text("Split bills the smart way")
                     .font(.system(.body, design: .rounded))
                     .foregroundStyle(.secondary)
             }
@@ -114,69 +130,118 @@ struct HomeView: View {
         }
     }
 
-    private var ctaSection: some View {
-        VStack(spacing: 14) {
-            // Primary CTA — scan
+    private var actionCards: some View {
+        VStack(spacing: 12) {
+            // Scan receipt — primary action
             Button {
                 showScanner = true
             } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "camera.viewfinder")
-                        .font(.system(size: 20, weight: .semibold))
-                    Text("Scan Receipt")
-                        .font(.system(.body, design: .rounded, weight: .semibold))
-                }
-                .foregroundStyle(isProcessingPhoto ? Color.secondary : Color.splitBg)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 18)
-                .background(
-                    Capsule()
-                        .fill(
-                            isProcessingPhoto
-                            ? AnyShapeStyle(Color.white.opacity(0.1))
-                            : AnyShapeStyle(LinearGradient(
-                                colors: [Color.splitTeal, Color.splitAccent],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            ))
-                        )
-                        .shadow(color: isProcessingPhoto ? .clear : Color.splitTeal.opacity(0.35), radius: 16, y: 6)
+                actionRow(
+                    icon: "camera.viewfinder",
+                    title: "Scan Receipt",
+                    subtitle: "Take a photo of your receipt",
+                    gradient: true
                 )
             }
             .buttonStyle(.plain)
             .disabled(isProcessingPhoto)
 
-            // Secondary CTA — photo picker
+            // Choose photo
             PhotosPicker(selection: $photoItem, matching: .images) {
-                HStack(spacing: 12) {
-                    if isProcessingPhoto {
-                        ProgressView()
-                            .tint(.white)
-                            .scaleEffect(0.85)
-                    } else {
-                        Image(systemName: "photo.on.rectangle")
-                            .font(.system(size: 18, weight: .semibold))
-                    }
-                    Text(isProcessingPhoto ? "Processing..." : "Choose Photo")
-                        .font(.system(.body, design: .rounded, weight: .semibold))
-                }
-                .foregroundStyle(.primary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 18)
-                .background(
-                    Capsule()
-                        .fill(.regularMaterial)
-                        .overlay(
-                            Capsule()
-                                .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
-                        )
+                actionRow(
+                    icon: "photo.on.rectangle.angled",
+                    title: isProcessingPhoto ? "Processing..." : "Choose Photo",
+                    subtitle: "Select from your photo library",
+                    gradient: false,
+                    showSpinner: isProcessingPhoto
                 )
             }
             .disabled(isProcessingPhoto)
             .buttonStyle(.plain)
+
+            // Manual entry
+            Button {
+                session.setReceipt(.empty)
+                session.navigate(to: .receiptReview)
+            } label: {
+                actionRow(
+                    icon: "square.and.pencil",
+                    title: "Manual Entry",
+                    subtitle: "Enter items by hand",
+                    gradient: false
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(isProcessingPhoto)
         }
         .opacity(appeared ? 1 : 0)
         .offset(y: appeared ? 0 : 24)
+    }
+
+    private func actionRow(
+        icon: String,
+        title: String,
+        subtitle: String,
+        gradient: Bool,
+        showSpinner: Bool = false
+    ) -> some View {
+        HStack(spacing: 16) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(
+                        gradient
+                        ? AnyShapeStyle(LinearGradient(
+                            colors: [Color.splitTeal, Color.splitAccent],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing))
+                        : AnyShapeStyle(Color.white.opacity(0.08))
+                    )
+                    .frame(width: 48, height: 48)
+
+                if showSpinner {
+                    ProgressView()
+                        .tint(gradient ? .black : .white)
+                        .scaleEffect(0.8)
+                } else {
+                    Image(systemName: icon)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(gradient ? .black.opacity(0.8) : .white)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(.body, design: .rounded, weight: .semibold))
+                    .foregroundStyle(.white)
+
+                Text(subtitle)
+                    .font(.system(.caption, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .strokeBorder(
+                            gradient
+                            ? AnyShapeStyle(LinearGradient(
+                                colors: [Color.splitTeal.opacity(0.4), Color.splitAccent.opacity(0.2)],
+                                startPoint: .leading,
+                                endPoint: .trailing))
+                            : AnyShapeStyle(Color.white.opacity(0.08)),
+                            lineWidth: 1
+                        )
+                )
+        )
     }
 
     // MARK: - Navigation Destinations

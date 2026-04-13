@@ -13,6 +13,7 @@ final class SplitSessionViewModel {
     // MARK: - Split Configuration
     var splitMode: SplitMode = .itemized
     var feeDistribution: FeeDistribution = .proportional
+    var discountDistribution: FeeDistribution = .even
 
     // MARK: - Item Assignments (lineItem.id → Set of person.id)
     var assignments: ItemAssignments = [:]
@@ -134,7 +135,8 @@ final class SplitSessionViewModel {
             people: people,
             mode: splitMode,
             assignments: assignments,
-            feeDistribution: feeDistribution
+            feeDistribution: feeDistribution,
+            discountDistribution: discountDistribution
         )
     }
 
@@ -156,6 +158,7 @@ final class SplitSessionViewModel {
         people = []
         splitMode = .itemized
         feeDistribution = .proportional
+        discountDistribution = .even
         assignments = [:]
         splitResult = nil
         navigationPath = NavigationPath()

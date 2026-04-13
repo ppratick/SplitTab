@@ -101,18 +101,18 @@ struct LineItemRow: View {
                 .font(.system(.body, design: .rounded, weight: .semibold))
                 .foregroundStyle(item.amount < 0 ? Color.splitAccent : .primary)
                 .monospacedDigit()
+
+            Button(action: onDelete) {
+                Image(systemName: "trash")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 30, height: 30)
+                    .background(Circle().fill(Color.white.opacity(0.07)))
+            }
+            .buttonStyle(.plain)
         }
         .contentShape(Rectangle())
         .onTapGesture { handleTap() }
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-            Button(role: .destructive, action: onDelete) {
-                Label("Delete", systemImage: "trash")
-            }
-            Button { handleTap() } label: {
-                Label("Edit", systemImage: "pencil")
-            }
-            .tint(.splitTeal)
-        }
     }
 
     // MARK: - Editing Row
@@ -149,6 +149,7 @@ struct LineItemRow: View {
                     .frame(width: 56, alignment: .leading)
                 TextField("Item name", text: $editName)
                     .font(.system(.body, design: .rounded))
+                    .textInputAutocapitalization(.words)
                     .multilineTextAlignment(.trailing)
             }
 

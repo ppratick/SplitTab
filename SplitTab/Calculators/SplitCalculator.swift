@@ -7,7 +7,8 @@ struct SplitCalculator {
         people: [Person],
         mode: SplitMode,
         assignments: ItemAssignments,
-        feeDistribution: FeeDistribution
+        feeDistribution: FeeDistribution,
+        discountDistribution: FeeDistribution = .even
     ) -> SplitResult {
         guard !people.isEmpty else {
             return SplitResult(personResults: [], unassignedItems: receipt.items,
@@ -18,7 +19,8 @@ struct SplitCalculator {
             return calculateEven(receipt: receipt, people: people, feeDistribution: feeDistribution)
         case .itemized:
             return calculateItemized(receipt: receipt, people: people,
-                                     assignments: assignments, feeDistribution: feeDistribution)
+                                     assignments: assignments, feeDistribution: feeDistribution,
+                                     discountDistribution: discountDistribution)
         }
     }
 
@@ -56,7 +58,8 @@ struct SplitCalculator {
         receipt: ReceiptData,
         people: [Person],
         assignments: ItemAssignments,
-        feeDistribution: FeeDistribution
+        feeDistribution: FeeDistribution,
+        discountDistribution: FeeDistribution
     ) -> SplitResult {
         let n = Decimal(people.count)
         var personFood: [UUID: Decimal] = Dictionary(uniqueKeysWithValues: people.map { ($0.id, Decimal(0)) })
@@ -94,13 +97,21 @@ struct SplitCalculator {
 
             switch feeDistribution {
             case .even:
-                feeShare     = round2(receipt.surchargeTotal / n)
+                feeShare = round2(receipt.surchargeTotal / n)
+            case .proportional:
+                let proportion: Decimal = foodSubtotalForProportion > 0
+                    ? myFood / foodSubtotalForProportion
+                    : Decimal(1) / n
+                feeShare = round2(receipt.surchargeTotal * proportion)
+            }
+
+            switch discountDistribution {
+            case .even:
                 discountShare = round2(receipt.discountTotal / n)
             case .proportional:
                 let proportion: Decimal = foodSubtotalForProportion > 0
                     ? myFood / foodSubtotalForProportion
                     : Decimal(1) / n
-                feeShare     = round2(receipt.surchargeTotal * proportion)
                 discountShare = round2(receipt.discountTotal * proportion)
             }
 

@@ -5,6 +5,7 @@ struct AssignableItemRow: View {
     let people: [Person]
     let assignedPeople: [Person]
     var onToggle: (UUID) -> Void
+    var onDelete: (() -> Void)? = nil
     /// Shared across all rows — whichever item's ID is set is the one expanded.
     @Binding var expandedItemID: UUID?
 

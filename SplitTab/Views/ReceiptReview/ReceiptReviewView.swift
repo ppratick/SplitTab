@@ -24,7 +24,7 @@ struct ReceiptReviewView: View {
 
                     // Food items section
                     if !receipt.items.isEmpty {
-                        itemSection(title: "Food & Drinks", items: receipt.items, color: Color.splitAccent)
+                        itemSection(title: "Items", items: receipt.items, color: Color.splitAccent)
                     }
 
                     // Surcharges section

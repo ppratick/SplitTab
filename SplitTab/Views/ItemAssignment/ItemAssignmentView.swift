@@ -39,6 +39,12 @@ struct ItemAssignmentView: View {
                                                     session.toggleAssignment(itemId: item.id, personId: personId)
                                                 }
                                             },
+                                            onDelete: {
+                                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                    if expandedItemID == item.id { expandedItemID = nil }
+                                                    session.deleteLineItem(item)
+                                                }
+                                            },
                                             expandedItemID: $expandedItemID
                                         )
 
@@ -134,7 +140,7 @@ struct ItemAssignmentView: View {
                 Image(systemName: "list.bullet.clipboard")
                     .font(.system(size: 32))
                     .foregroundStyle(.secondary)
-                Text("No food items found")
+                Text("No items found")
                     .font(.system(.body, design: .rounded, weight: .medium))
                 Text("Go back and add items to the receipt.")
                     .font(.caption)

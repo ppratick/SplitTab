@@ -26,6 +26,9 @@ struct ResultsView: View {
                         // Fee distribution toggle (only for itemized)
                         if result.splitMode == .itemized {
                             feeToggleSection
+                            if let receipt, !receipt.discounts.isEmpty {
+                                discountToggleSection
+                            }
                         }
 
                         // Unassigned items warning
@@ -65,6 +68,9 @@ struct ResultsView: View {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { appeared = true }
         }
         .onChange(of: session.feeDistribution) { _, _ in
+            session.calculate()
+        }
+        .onChange(of: session.discountDistribution) { _, _ in
             session.calculate()
         }
     }
@@ -142,6 +148,20 @@ struct ResultsView: View {
             FeeToggleBar(selection: Binding<FeeDistribution>(
                 get: { session.feeDistribution },
                 set: { session.feeDistribution = $0 }
+            ))
+        }
+    }
+
+    private var discountToggleSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Discount Distribution")
+                .font(.system(.caption, design: .rounded, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .padding(.leading, 4)
+
+            FeeToggleBar(selection: Binding<FeeDistribution>(
+                get: { session.discountDistribution },
+                set: { session.discountDistribution = $0 }
             ))
         }
     }

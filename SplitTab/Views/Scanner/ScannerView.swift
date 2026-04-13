@@ -1,5 +1,5 @@
 import SwiftUI
-import VisionKit
+import AVFoundation
 
 struct ScannerView: View {
     var onScanned: (ReceiptData) -> Void
@@ -15,7 +15,7 @@ struct ScannerView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            if DataScannerViewController.isSupported && DataScannerViewController.isAvailable {
+            if AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) != nil {
                 DataScannerRepresentable(
                     isScanning: $isScanning,
                     captureTrigger: $captureTrigger,

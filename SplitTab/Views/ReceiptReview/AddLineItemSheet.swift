@@ -57,6 +57,7 @@ struct AddLineItemSheet: View {
 
                                     TextField("Item name", text: $name)
                                         .font(.system(.body, design: .rounded))
+                                        .textInputAutocapitalization(.words)
                                         .focused($focusedField, equals: .name)
                                         .submitLabel(.next)
                                         .onSubmit { focusedField = inputMode == .dollar ? .amount : .percent }

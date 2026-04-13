@@ -94,7 +94,7 @@ struct PersonResultCard: View {
             Divider().overlay(Color.white.opacity(0.06)).padding(.horizontal, 18)
 
             // Subtotal
-            breakdownRow(label: "Food Subtotal", amount: result.foodSubtotal, bold: true)
+            breakdownRow(label: "Subtotal", amount: result.foodSubtotal, bold: true)
 
             // Fee share
             if result.feeShare != 0 {

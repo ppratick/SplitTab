@@ -15,6 +15,7 @@ struct PersonRowView: View {
 
             TextField("Name", text: $name)
                 .font(.system(.body, design: .rounded))
+                .textInputAutocapitalization(.words)
                 .focused($isFocused)
                 .onSubmit { onNameChange(name) }
                 .onChange(of: name) { _, newValue in
