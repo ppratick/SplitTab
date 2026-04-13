@@ -17,7 +17,7 @@ struct LineItemRow: View {
     // MARK: - Derived state
 
     private var isEditing: Bool { editingItemID == item.id }
-    private var supportsPct: Bool { item.category != .food }
+    private var supportsPct: Bool { item.category != .item }
 
     private var computedEditAmount: Decimal? {
         switch editInputMode {
@@ -266,7 +266,7 @@ struct LineItemRow: View {
 
     private var categoryColor: Color {
         switch item.category {
-        case .food:     return Color.splitAccent
+        case .item:     return Color.splitAccent
         case .tax:      return Color.splitWarn
         case .tip:      return Color(red: 0.93, green: 0.46, blue: 0.46)
         case .fee:      return Color(red: 0.56, green: 0.78, blue: 0.94)
@@ -286,7 +286,7 @@ struct LineItemRow: View {
 
     private func beginEdit() {
         editName = item.name
-        if let pct = item.sourcePercent, item.category != .food {
+        if let pct = item.sourcePercent, item.category != .item {
             editInputMode = .percentage
             editPercentText = pct.digitsString
             editAmountText = NSDecimalNumber(decimal: abs(item.amount)).stringValue
@@ -332,7 +332,7 @@ struct LineItemRow: View {
         editName = item.name
         editAmountText = NSDecimalNumber(decimal: abs(item.amount)).stringValue
         editPercentText = item.sourcePercent.map { $0.digitsString } ?? ""
-        editInputMode = item.sourcePercent != nil && item.category != .food ? .percentage : .dollar
+        editInputMode = item.sourcePercent != nil && item.category != .item ? .percentage : .dollar
         editingItemID = nil
     }
 }

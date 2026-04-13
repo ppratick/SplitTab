@@ -58,7 +58,7 @@ struct ReceiptReviewView: View {
             }
         }
         .sheet(isPresented: $showAddItem) {
-            AddLineItemSheet(baseAmount: receipt.foodSubtotal) { item in
+            AddLineItemSheet(baseAmount: receipt.itemSubtotal) { item in
                 session.addLineItem(item)
             }
         }
@@ -74,7 +74,7 @@ struct ReceiptReviewView: View {
                     Text("Subtotal")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    CurrencyText(amount: receipt.foodSubtotal,
+                    CurrencyText(amount: receipt.itemSubtotal,
                                  font: .system(.title3, design: .rounded, weight: .bold))
                 }
                 Spacer()
@@ -144,7 +144,7 @@ struct ReceiptReviewView: View {
                     ForEach(Array(items.enumerated()), id: \.element.id) { idx, item in
                         LineItemRow(
                             item: item,
-                            baseAmount: receipt.foodSubtotal,
+                            baseAmount: receipt.itemSubtotal,
                             editingItemID: $editingItemID,
                             onUpdate: { session.updateLineItem($0) },
                             onDelete: { session.deleteLineItem(item) }

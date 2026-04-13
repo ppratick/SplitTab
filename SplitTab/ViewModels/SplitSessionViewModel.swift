@@ -78,7 +78,7 @@ final class SplitSessionViewModel {
         return people.filter { ids.contains($0.id) }
     }
 
-    var unassignedFoodItemCount: Int {
+    var unassignedItemCount: Int {
         guard let receipt else { return 0 }
         return receipt.items.filter { item in
             (assignments[item.id] ?? []).isEmpty
@@ -95,7 +95,7 @@ final class SplitSessionViewModel {
     func addLineItem(_ item: LineItem) {
         guard var r = receipt else { return }
         switch item.category {
-        case .food, .unknown:
+        case .item, .unknown:
             r.items.append(item)
         case .tax, .tip, .fee:
             r.surcharges.append(item)

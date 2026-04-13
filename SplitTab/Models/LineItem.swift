@@ -1,7 +1,7 @@
 import Foundation
 
 enum LineItemCategory: String, Codable, CaseIterable, Identifiable {
-    case food     = "Food"
+    case item     = "Item"
     case tax      = "Tax"
     case tip      = "Tip"
     case fee      = "Fee"
@@ -12,7 +12,7 @@ enum LineItemCategory: String, Codable, CaseIterable, Identifiable {
 
     var systemImage: String {
         switch self {
-        case .food:     return "fork.knife"
+        case .item:     return "receipt"
         case .tax:      return "building.columns"
         case .tip:      return "heart.fill"
         case .fee:      return "plus.circle.fill"
@@ -28,7 +28,7 @@ enum LineItemCategory: String, Codable, CaseIterable, Identifiable {
     /// Default name pre-filled in the Add Item sheet when this category is selected.
     var defaultName: String {
         switch self {
-        case .food:     return ""
+        case .item:     return ""
         case .tax:      return "Tax"
         case .tip:      return "Tip"
         case .fee:      return "Fee"

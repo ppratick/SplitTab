@@ -176,7 +176,7 @@ struct ResultsView: View {
     private func mealBreakdownCard(receipt: ReceiptData) -> some View {
         GlassCard {
             VStack(spacing: 12) {
-                breakdownRow("Subtotal", amount: receipt.foodSubtotal, color: .primary)
+                breakdownRow("Subtotal", amount: receipt.itemSubtotal, color: .primary)
 
                 if receipt.surchargeTotal > 0 {
                     breakdownRow("Tax & Fees", amount: receipt.surchargeTotal, color: Color.splitWarn)

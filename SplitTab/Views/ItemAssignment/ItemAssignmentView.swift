@@ -11,7 +11,7 @@ struct ItemAssignmentView: View {
             Color.splitBg.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                if session.unassignedFoodItemCount > 0 {
+                if session.unassignedItemCount > 0 {
                     unassignedBanner
                 }
 
@@ -75,7 +75,7 @@ struct ItemAssignmentView: View {
         HStack(spacing: 10) {
             Image(systemName: "exclamationmark.circle.fill")
                 .foregroundStyle(Color.splitWarn)
-            Text("\(session.unassignedFoodItemCount) item\(session.unassignedFoodItemCount == 1 ? "" : "s") not yet assigned")
+            Text("\(session.unassignedItemCount) item\(session.unassignedItemCount == 1 ? "" : "s") not yet assigned")
                 .font(.system(.caption, design: .rounded, weight: .medium))
                 .foregroundStyle(.primary)
             Spacer()
@@ -142,7 +142,7 @@ struct ItemAssignmentView: View {
     }
 
     private var seeResultsButton: some View {
-        let blocked = session.splitMode == .itemized && session.unassignedFoodItemCount > 0
+        let blocked = session.splitMode == .itemized && session.unassignedItemCount > 0
         return Button {
             session.navigateToResults()
         } label: {

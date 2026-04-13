@@ -82,7 +82,7 @@ struct HomeView: View {
                     .font(.system(size: 38, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
 
-                Text("Split bills the smart way")
+                Text("Split your bills instantly")
                     .font(.system(.callout, design: .rounded))
                     .foregroundStyle(.secondary)
             }
@@ -128,7 +128,7 @@ struct HomeView: View {
                 actionRow(
                     icon: "square.and.pencil",
                     title: "Manual Entry",
-                    subtitle: "Enter items by hand",
+                    subtitle: "Enter items manually",
                     isPrimary: false
                 )
             }

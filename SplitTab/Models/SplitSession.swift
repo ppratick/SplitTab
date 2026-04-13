@@ -9,7 +9,7 @@ enum SplitMode: String, CaseIterable, Identifiable {
     var description: String {
         switch self {
         case .even:     return "Divide total equally among everyone"
-        case .itemized: return "Pay for what each person ordered"
+        case .itemized: return "Pay for what each person got"
         }
     }
 

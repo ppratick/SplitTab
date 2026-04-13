@@ -9,7 +9,7 @@ struct OpenAIReceiptService {
     "fees": [{"name": "fee name", "price": 0.00}], \
     "discounts": [{"name": "discount name", "price": 0.00}], \
     "subtotal": 0.00, "tax": 0.00, "tax_pct": null, "tip": 0.00, "tip_pct": null}. \
-    "items" = actual ordered food/drink only. \
+    "items" = all purchasable items on the receipt. \
     "fees" = any extra charges such as delivery fee, service fee, bag fee, regulatory fee, convenience fee, or similar (use positive prices). \
     "discounts" = any reductions such as coupons, promotions, member discounts, or credits (use positive prices — the app will negate them). \
     If an item has a quantity greater than 1 (e.g. "2 Burger $20.00"), expand it into that many separate entries each with the per-unit price (e.g. two entries of "Burger" at $10.00 each). \
@@ -91,14 +91,14 @@ struct OpenAIReceiptService {
             throw ScanError.noTextFound
         }
 
-        // Food items
+        // Items
         var items: [LineItem] = []
         if let rawItems = parsed["items"] as? [[String: Any]] {
             for entry in rawItems {
                 guard let name = entry["name"] as? String, !name.isEmpty,
                       let price = doubleValue(from: entry["price"]),
                       price > 0 else { continue }
-                items.append(LineItem(name: name, amount: Decimal.roundToTwo(Decimal(price)), category: .food))
+                items.append(LineItem(name: name, amount: Decimal.roundToTwo(Decimal(price)), category: .item))
             }
         }
 
@@ -124,12 +124,12 @@ struct OpenAIReceiptService {
         }
 
         // Back-compute sourcePercent for any surcharge the AI didn't give a % for
-        let foodTotal = items.reduce(Decimal(0)) { $0 + $1.amount }
-        if foodTotal > 0 {
+        let itemTotal = items.reduce(Decimal(0)) { $0 + $1.amount }
+        if itemTotal > 0 {
             surcharges = surcharges.map { item in
                 guard item.sourcePercent == nil else { return item }
                 var updated = item
-                updated.sourcePercent = Decimal.roundToTwo(item.amount / foodTotal * 100)
+                updated.sourcePercent = Decimal.roundToTwo(item.amount / itemTotal * 100)
                 return updated
             }
         }
@@ -147,7 +147,7 @@ struct OpenAIReceiptService {
 
         // Reference total: AI's subtotal + all extracted surcharges + discounts.
         // This way the discrepancy banner fires only when the sum of individual
-        // food items diverges from the AI's claimed subtotal.
+        // items diverges from the AI's claimed subtotal.
         let subtotalD = doubleValue(from: parsed["subtotal"]) ?? 0
         let parsedTotal: Decimal? = subtotalD > 0
             ? Decimal.roundToTwo(Decimal(subtotalD))

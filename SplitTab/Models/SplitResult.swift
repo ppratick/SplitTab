@@ -5,7 +5,7 @@ struct PersonResult: Identifiable {
     let name: String
     let avatarColorIndex: Int
     let assignedItems: [(item: LineItem, shareAmount: Decimal)]
-    let foodSubtotal: Decimal
+    let itemSubtotal: Decimal
     let feeShare: Decimal
     let discountShare: Decimal
     let total: Decimal

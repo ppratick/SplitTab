@@ -1,12 +1,12 @@
 import Foundation
 
 struct ReceiptData: Equatable {
-    var items: [LineItem]        // .food
+    var items: [LineItem]        // .item
     var surcharges: [LineItem]   // .tax, .tip, .fee
     var discounts: [LineItem]    // .discount
     var parsedTotal: Decimal?    // raw total from OCR
 
-    var foodSubtotal: Decimal {
+    var itemSubtotal: Decimal {
         items.reduce(0) { $0 + $1.amount }
     }
 
@@ -19,7 +19,7 @@ struct ReceiptData: Equatable {
     }
 
     var grandTotal: Decimal {
-        foodSubtotal + surchargeTotal + discountTotal
+        itemSubtotal + surchargeTotal + discountTotal
     }
 
     var totalDiscrepancy: Decimal? {

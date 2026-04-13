@@ -22,10 +22,10 @@ struct ReceiptParser {
             let category = classify(name: name, amount: amount)
 
             switch category {
-            case .food:
+            case .item:
                 let isLow = amount > 200 || name.count < 2
                 items.append(LineItem(name: name.isEmpty ? line : name, amount: amount,
-                                      category: .food, isLowConfidence: isLow))
+                                      category: .item, isLowConfidence: isLow))
             case .tax:
                 surcharges.append(LineItem(name: name, amount: amount, category: .tax))
             case .tip:
@@ -62,7 +62,7 @@ struct ReceiptParser {
     private static let tipKeywords      = ["tip", "gratuity", "service charge", "svc"]
     private static let feeKeywords      = ["fee", "surcharge", "delivery", "convenience", "charge"]
     private static let discountKeywords = ["discount", "coupon", "promo", "savings", " off", "comp"]
-    private static let subtotalKeywords = ["subtotal", "sub total", "sub-total", "food total", "net total", "pre-tax"]
+    private static let subtotalKeywords = ["subtotal", "sub total", "sub-total", "food total", "item total", "net total", "pre-tax"]
     private static let totalKeywords    = ["total", "amount due", "balance due", "grand total", "please pay", "amount tendered"]
     private static let suppressKeywords = ["payment", "cash", "visa", "mastercard", "amex", "discover", "debit", "credit",
                                            "change", "amount paid", "balance", "check", "cheque", "card", "cash back",
@@ -104,7 +104,7 @@ struct ReceiptParser {
         if subtotalKeywords.contains(where: { lc.contains($0) }) { return .unknown }
         if totalKeywords.contains(where: { lc.contains($0) })    { return .unknown }
         if suppressKeywords.contains(where: { lc.contains($0) }) { return .unknown }
-        return .food
+        return .item
     }
 
     // Strip any price patterns embedded in the name (e.g. "Burger 8.99" → "Burger")

@@ -8,7 +8,7 @@ struct AddLineItemSheet: View {
     @State private var amountText = ""
     @State private var percentText = ""
     @State private var inputMode: InputMode = .dollar
-    @State private var category: LineItemCategory = .food
+    @State private var category: LineItemCategory = .item
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focusedField: Field?
 
@@ -17,7 +17,7 @@ struct AddLineItemSheet: View {
 
     // MARK: - Computed
 
-    private var supportsPct: Bool { category != .food }
+    private var supportsPct: Bool { category != .item }
 
     private var computedAmount: Decimal? {
         switch inputMode {
@@ -213,7 +213,7 @@ struct AddLineItemSheet: View {
         return Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                 category = cat
-                if cat == .food { inputMode = .dollar }
+                if cat == .item { inputMode = .dollar }
             }
         } label: {
             VStack(spacing: 6) {
@@ -244,7 +244,7 @@ struct AddLineItemSheet: View {
         let finalAmount = category == .discount ? (amt > 0 ? -amt : amt) : amt
 
         let pct: Decimal?
-        if category != .food {
+        if category != .item {
             if inputMode == .percentage, let p = Decimal(string: percentText), p > 0 {
                 pct = p
             } else if baseAmount > 0 {

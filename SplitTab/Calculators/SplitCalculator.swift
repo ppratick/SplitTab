@@ -42,7 +42,7 @@ struct SplitCalculator {
                 name: person.name,
                 avatarColorIndex: person.colorIndex,
                 assignedItems: [],
-                foodSubtotal: round2(receipt.foodSubtotal / n),
+                itemSubtotal: round2(receipt.itemSubtotal / n),
                 feeShare: round2(receipt.surchargeTotal / n),
                 discountShare: round2(receipt.discountTotal / n),
                 total: perPerson + adj
@@ -62,11 +62,11 @@ struct SplitCalculator {
         discountDistribution: FeeDistribution
     ) -> SplitResult {
         let n = Decimal(people.count)
-        var personFood: [UUID: Decimal] = Dictionary(uniqueKeysWithValues: people.map { ($0.id, Decimal(0)) })
+        var personItems: [UUID: Decimal] = Dictionary(uniqueKeysWithValues: people.map { ($0.id, Decimal(0)) })
         var personItemList: [UUID: [(item: LineItem, shareAmount: Decimal)]] = Dictionary(uniqueKeysWithValues: people.map { ($0.id, []) })
         var unassigned: [LineItem] = []
 
-        // Distribute assigned food items
+        // Distribute assigned items
         for item in receipt.items {
             let assignees = Array(assignments[item.id] ?? [])
             guard !assignees.isEmpty else {
@@ -78,7 +78,7 @@ struct SplitCalculator {
             for (idx, pid) in assignees.enumerated() {
                 let adj: Decimal = idx == 0 ? remainder : 0
                 let finalShare = share + adj
-                personFood[pid, default: 0] += finalShare
+                personItems[pid, default: 0] += finalShare
                 personItemList[pid, default: []].append((item: item, shareAmount: finalShare))
             }
         }
@@ -87,10 +87,10 @@ struct SplitCalculator {
         let unassignedTotal = unassigned.reduce(Decimal(0)) { $0 + $1.amount }
         let unassignedPerPerson = round2(unassignedTotal / n)
 
-        let foodSubtotalForProportion = receipt.foodSubtotal
+        let itemSubtotalForProportion = receipt.itemSubtotal
 
         let results = people.map { person -> PersonResult in
-            let myFood = personFood[person.id, default: 0] + unassignedPerPerson
+            let myItems = personItems[person.id, default: 0] + unassignedPerPerson
 
             let feeShare: Decimal
             let discountShare: Decimal
@@ -99,8 +99,8 @@ struct SplitCalculator {
             case .even:
                 feeShare = round2(receipt.surchargeTotal / n)
             case .proportional:
-                let proportion: Decimal = foodSubtotalForProportion > 0
-                    ? myFood / foodSubtotalForProportion
+                let proportion: Decimal = itemSubtotalForProportion > 0
+                    ? myItems / itemSubtotalForProportion
                     : Decimal(1) / n
                 feeShare = round2(receipt.surchargeTotal * proportion)
             }
@@ -109,19 +109,19 @@ struct SplitCalculator {
             case .even:
                 discountShare = round2(receipt.discountTotal / n)
             case .proportional:
-                let proportion: Decimal = foodSubtotalForProportion > 0
-                    ? myFood / foodSubtotalForProportion
+                let proportion: Decimal = itemSubtotalForProportion > 0
+                    ? myItems / itemSubtotalForProportion
                     : Decimal(1) / n
                 discountShare = round2(receipt.discountTotal * proportion)
             }
 
-            let total = max(0, myFood + feeShare + discountShare)
+            let total = max(0, myItems + feeShare + discountShare)
             return PersonResult(
                 id: person.id,
                 name: person.name,
                 avatarColorIndex: person.colorIndex,
                 assignedItems: personItemList[person.id, default: []],
-                foodSubtotal: myFood,
+                itemSubtotal: myItems,
                 feeShare: feeShare,
                 discountShare: discountShare,
                 total: total
