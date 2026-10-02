@@ -20,6 +20,10 @@ struct OpenAIReceiptService {
 
     /// Send a receipt image to GPT-4o Vision and return structured ReceiptData.
     static func parseReceipt(image: UIImage) async throws -> ReceiptData {
+        let apiKey = ReceiptAPIConfiguration.apiKey
+        guard !apiKey.isEmpty else {
+            throw ScanError.apiError("AI scanning needs a local OPENAI_API_KEY. You can still enter receipt items manually.")
+        }
         let resized = resize(image, maxDimension: 1536)
         guard let jpeg = resized.jpegData(compressionQuality: 0.82) else {
             throw ScanError.invalidImage
@@ -46,13 +50,10 @@ struct OpenAIReceiptService {
             ]
         ]
 
-        guard let url = URL(string: Constants.openAIEndpoint) else {
-            throw ScanError.apiError("Invalid endpoint URL")
-        }
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: ReceiptAPIConfiguration.endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(Constants.openAIKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 30
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 

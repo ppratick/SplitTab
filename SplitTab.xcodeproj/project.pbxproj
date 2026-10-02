@@ -134,6 +134,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 8M53A8X388;
 				ENABLE_PREVIEWS = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = Constants.swift;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "SplitTab needs camera access to scan your receipt.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "SplitTab needs photo library access to import a receipt image.";
@@ -287,6 +288,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 8M53A8X388;
 				ENABLE_PREVIEWS = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = Constants.swift;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "SplitTab needs camera access to scan your receipt.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "SplitTab needs photo library access to import a receipt image.";
