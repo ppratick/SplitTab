@@ -10,28 +10,63 @@ enum SplitTabRoute: Hashable {
 }
 
 struct HomeView: View {
+    var tripName: String? = nil
+    var initialCurrency = "USD"
+    var onBack: (() -> Void)? = nil
+    var onReceipt: ((ReceiptData?, String) -> Void)? = nil
+    @Environment(\.dismiss) private var dismiss
     @State private var session = SplitSessionViewModel()
     @State private var showScanner = false
     @State private var photoItem: PhotosPickerItem?
     @State private var isProcessingPhoto = false
     @State private var processingError: String?
     @State private var appeared = false
+    @State private var currencyInitialized = false
 
     var body: some View {
         NavigationStack(path: $session.navigationPath) {
             ZStack {
                 Color.splitBg.ignoresSafeArea()
 
+                // Ambient glow
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.splitAccent.opacity(0.12), Color.clear],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: 220
+                        )
+                    )
+                    .frame(width: 440, height: 440)
+                    .offset(y: -60)
+                    .blur(radius: 60)
+                    .allowsHitTesting(false)
+                    .frame(width: 0, height: 0)
+
                 VStack(spacing: 0) {
                     Spacer()
                     heroSection
                     Spacer()
+                    Picker("Bill currency", selection: Binding(get: { session.currencyCode }, set: { session.currencyCode = $0 })) {
+                        ForEach(TripCurrency.codes, id: \.self) { Text($0).tag($0) }
+                    }.tint(.splitAccent).padding(.bottom, 16).accessibilityIdentifier("bill.currency")
                     actionCards
-                    Spacer(minLength: 52)
+                        .padding(.bottom, 60)
                 }
                 .padding(.horizontal, 24)
             }
-            .navigationBarHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        if let onBack { onBack() } else { dismiss() }
+                    } label: {
+                        if onBack == nil && tripName == nil { Text("Home") } else { Image(systemName: "chevron.left") }
+                    }
+                    .accessibilityLabel(tripName == nil ? "Home" : "Cancel")
+                }
+            }
+            .toolbarBackground(.hidden, for: .navigationBar)
             .navigationDestination(for: SplitTabRoute.self) { route in
                 destination(for: route)
             }
@@ -52,10 +87,13 @@ struct HomeView: View {
                 Text(processingError ?? "")
             }
         }
+        .tripError(Binding(get: { session.calculationError }, set: { session.calculationError = $0 }))
         .environment(session)
+        .environment(\.tripCurrencyCode, session.currencyCode)
         .preferredColorScheme(.dark)
         .onAppear {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.85).delay(0.1)) {
+            if !currencyInitialized { session.currencyCode = initialCurrency; currencyInitialized = true }
+            withAnimation(.spring(response: 0.8, dampingFraction: 0.75).delay(0.1)) {
                 appeared = true
             }
         }
@@ -64,131 +102,151 @@ struct HomeView: View {
     // MARK: - Subviews
 
     private var heroSection: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 24) {
             ZStack {
+                // Outer glow ring
+                Circle()
+                    .fill(Color.splitAccent.opacity(0.08))
+                    .frame(width: 110, height: 110)
+
                 Circle()
                     .fill(Color.splitAccent)
                     .frame(width: 80, height: 80)
+                    .shadow(color: Color.splitAccent.opacity(0.3), radius: 20, y: 4)
 
                 Image(systemName: "doc.text.viewfinder")
                     .font(.system(size: 34, weight: .medium))
-                    .foregroundStyle(.black.opacity(0.75))
+                    .foregroundStyle(.black.opacity(0.8))
             }
             .scaleEffect(appeared ? 1 : 0.5)
             .opacity(appeared ? 1 : 0)
 
-            VStack(spacing: 6) {
-                Text("SplitTab")
-                    .font(.system(size: 38, weight: .bold, design: .rounded))
+            VStack(spacing: 8) {
+                Text(tripName == nil ? "SplitTab" : "Add Expense")
+                    .font(.system(size: 42, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
 
-                Text("Split your bills instantly")
-                    .font(.system(.callout, design: .rounded))
-                    .foregroundStyle(.secondary)
+                Text(tripName.map { "Add a shared expense to \($0)" } ?? "Split your bills instantly")
+                    .font(.system(.body, design: .rounded, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.5))
             }
             .opacity(appeared ? 1 : 0)
-            .offset(y: appeared ? 0 : 12)
+            .offset(y: appeared ? 0 : 16)
         }
     }
 
     private var actionCards: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             // Scan receipt — primary
             Button {
                 showScanner = true
             } label: {
-                actionRow(
-                    icon: "camera.viewfinder",
-                    title: "Scan Receipt",
-                    subtitle: "Take a photo of your receipt",
-                    isPrimary: true
-                )
+                primaryActionCard
             }
+            .accessibilityIdentifier("capture.scan")
+            .accessibilityLabel("Scan Receipt")
             .buttonStyle(.plain)
             .disabled(isProcessingPhoto)
+            .scaleEffect(appeared ? 1 : 0.95)
+            .opacity(appeared ? 1 : 0)
 
-            // Choose photo
-            PhotosPicker(selection: $photoItem, matching: .images) {
-                actionRow(
-                    icon: "photo.on.rectangle.angled",
-                    title: isProcessingPhoto ? "Processing..." : "Choose Photo",
-                    subtitle: "Select from your photo library",
-                    isPrimary: false,
-                    showSpinner: isProcessingPhoto
-                )
-            }
-            .disabled(isProcessingPhoto)
-            .buttonStyle(.plain)
+            HStack(spacing: 12) {
+                // Choose photo
+                PhotosPicker(selection: $photoItem, matching: .images) {
+                    secondaryCard(
+                        icon: "photo.on.rectangle.angled",
+                        title: isProcessingPhoto ? "Processing..." : "Choose Photo",
+                        showSpinner: isProcessingPhoto
+                    )
+                }
+                .disabled(isProcessingPhoto)
+                .buttonStyle(.plain)
 
-            // Manual entry
-            Button {
-                session.setReceipt(.empty)
-                session.navigate(to: .receiptReview)
-            } label: {
-                actionRow(
-                    icon: "square.and.pencil",
-                    title: "Manual Entry",
-                    subtitle: "Enter items manually",
-                    isPrimary: false
-                )
+                // Manual entry
+                Button {
+                    if let onReceipt { onReceipt(nil, session.currencyCode) }
+                    else { session.setReceipt(.empty); session.navigate(to: .receiptReview) }
+                } label: {
+                    secondaryCard(
+                        icon: "square.and.pencil",
+                        title: "Manual Entry",
+                        accent: .splitCoral
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(isProcessingPhoto)
             }
-            .buttonStyle(.plain)
-            .disabled(isProcessingPhoto)
+            .scaleEffect(appeared ? 1 : 0.95)
+            .opacity(appeared ? 1 : 0)
         }
-        .opacity(appeared ? 1 : 0)
-        .offset(y: appeared ? 0 : 20)
     }
 
-    private func actionRow(
-        icon: String,
-        title: String,
-        subtitle: String,
-        isPrimary: Bool,
-        showSpinner: Bool = false
-    ) -> some View {
-        HStack(spacing: 14) {
+    private var primaryActionCard: some View {
+        HStack(spacing: 16) {
             ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(isPrimary ? Color.splitAccent : Color.white.opacity(0.06))
-                    .frame(width: 44, height: 44)
-
-                if showSpinner {
-                    ProgressView()
-                        .tint(isPrimary ? .black : .white)
-                        .scaleEffect(0.8)
-                } else {
-                    Image(systemName: icon)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(isPrimary ? .black.opacity(0.75) : .white)
-                }
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.splitAccent)
+                    .frame(width: 48, height: 48)
+                Image(systemName: "camera.viewfinder")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(.black.opacity(0.8))
             }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(.body, design: .rounded, weight: .semibold))
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Scan Receipt")
+                    .font(.system(.body, design: .rounded, weight: .bold))
                     .foregroundStyle(.white)
-
-                Text(subtitle)
-                    .font(.system(.caption2, design: .rounded))
-                    .foregroundStyle(.secondary)
+                Text("Take a photo of your receipt")
+                    .font(.system(.caption, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.45))
             }
 
             Spacer()
 
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Color.white.opacity(0.2))
+            Image(systemName: "arrow.right")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(Color.splitAccent)
+                .frame(width: 32, height: 32)
+                .background(Circle().fill(Color.splitAccent.opacity(0.15)))
         }
-        .padding(14)
+        .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.04))
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.white.opacity(0.05))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(
-                            isPrimary ? Color.splitAccent.opacity(0.3) : Color.white.opacity(0.06),
-                            lineWidth: 1
-                        )
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .strokeBorder(Color.splitAccent.opacity(0.2), lineWidth: 1)
+                )
+        )
+    }
+
+    private func secondaryCard(icon: String, title: String, showSpinner: Bool = false, accent: Color = .splitViolet) -> some View {
+        VStack(spacing: 12) {
+            if showSpinner {
+                ProgressView()
+                    .tint(.white)
+                    .scaleEffect(0.8)
+                    .frame(width: 28, height: 28)
+            } else {
+                Image(systemName: icon)
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(accent)
+                    .frame(width: 28, height: 28)
+            }
+
+            Text(title)
+                .font(.system(.caption, design: .rounded, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.7))
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 20)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(accent.opacity(0.07))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(accent.opacity(0.18), lineWidth: 1)
                 )
         )
     }
@@ -204,7 +262,7 @@ struct HomeView: View {
                 session.navigate(to: .receiptReview)
             }
         case .receiptReview:
-            ReceiptReviewView()
+            ReceiptReviewView(onContinue: onReceipt.map { callback in { callback(session.receipt, session.currencyCode) } })
         case .splitSetup:
             SplitSetupView()
         case .itemAssignment:

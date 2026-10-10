@@ -1,143 +1,42 @@
 import Foundation
 
+/// Standalone receipts use the same minor-unit apportionment as trip expenses.
 struct SplitCalculator {
-
     static func calculate(
-        receipt: ReceiptData,
-        people: [Person],
-        mode: SplitMode,
-        assignments: ItemAssignments,
-        feeDistribution: FeeDistribution,
-        discountDistribution: FeeDistribution = .even
-    ) -> SplitResult {
-        guard !people.isEmpty else {
-            return SplitResult(personResults: [], unassignedItems: receipt.items,
-                               feeDistribution: feeDistribution, splitMode: mode)
-        }
-        switch mode {
-        case .even:
-            return calculateEven(receipt: receipt, people: people, feeDistribution: feeDistribution)
-        case .itemized:
-            return calculateItemized(receipt: receipt, people: people,
-                                     assignments: assignments, feeDistribution: feeDistribution,
-                                     discountDistribution: discountDistribution)
-        }
-    }
-
-    // MARK: - Even Split
-
-    private static func calculateEven(
-        receipt: ReceiptData,
-        people: [Person],
-        feeDistribution: FeeDistribution
-    ) -> SplitResult {
-        let n = Decimal(people.count)
-        let perPerson = round2(receipt.grandTotal / n)
-        let remainder = receipt.grandTotal - perPerson * n
-
-        let results = people.enumerated().map { idx, person -> PersonResult in
-            let adj: Decimal = idx == 0 ? remainder : 0
-            return PersonResult(
-                id: person.id,
-                name: person.name,
-                avatarColorIndex: person.colorIndex,
-                assignedItems: [],
-                itemSubtotal: round2(receipt.itemSubtotal / n),
-                feeShare: round2(receipt.surchargeTotal / n),
-                discountShare: round2(receipt.discountTotal / n),
-                total: perPerson + adj
-            )
-        }
-        return SplitResult(personResults: results, unassignedItems: [],
-                           feeDistribution: .even, splitMode: .even)
-    }
-
-    // MARK: - Itemized Split
-
-    private static func calculateItemized(
-        receipt: ReceiptData,
-        people: [Person],
-        assignments: ItemAssignments,
-        feeDistribution: FeeDistribution,
-        discountDistribution: FeeDistribution
-    ) -> SplitResult {
-        let n = Decimal(people.count)
-        var personItems: [UUID: Decimal] = Dictionary(uniqueKeysWithValues: people.map { ($0.id, Decimal(0)) })
-        var personItemList: [UUID: [(item: LineItem, shareAmount: Decimal)]] = Dictionary(uniqueKeysWithValues: people.map { ($0.id, []) })
-        var unassigned: [LineItem] = []
-
-        // Distribute assigned items
+        receipt: ReceiptData, people: [Person], mode: SplitMode,
+        assignments: ItemAssignments, feeDistribution: FeeDistribution,
+        discountDistribution: FeeDistribution = .even, currency: String = "USD"
+    ) throws -> SplitResult {
+        guard !people.isEmpty else { throw TripIssue("Add people before calculating.") }
+        let ids = people.map(\.id)
+        var effective = assignments
+        let unassigned = receipt.items.filter { (effective[$0.id] ?? []).isEmpty }
+        for item in unassigned { effective[item.id] = Set(ids) }
+        var expense = TripExpense(title: "Bill", amount: try TripCurrency.minor(receipt.grandTotal, currency), payer: ids[0], participants: ids, mode: mode == .even ? .equal : .itemized, receipt: receipt, assignments: effective, fees: feeDistribution, discounts: discountDistribution)
+        for line in receipt.items + receipt.surcharges + receipt.discounts { _ = try TripCurrency.minor(line.amount, currency) }
+        expense.shares = try TripMath.shares(expense, currency: currency)
+        let factor = TripCurrency.factor(currency)
+        var base = Dictionary(uniqueKeysWithValues: ids.map { ($0, Int64(0)) })
+        var lists: [UUID: [(item: LineItem, shareAmount: Decimal)]] = [:]
         for item in receipt.items {
-            let assignees = Array(assignments[item.id] ?? [])
-            guard !assignees.isEmpty else {
-                unassigned.append(item)
-                continue
-            }
-            let share = round2(item.amount / Decimal(assignees.count))
-            let remainder = item.amount - share * Decimal(assignees.count)
-            for (idx, pid) in assignees.enumerated() {
-                let adj: Decimal = idx == 0 ? remainder : 0
-                let finalShare = share + adj
-                personItems[pid, default: 0] += finalShare
-                personItemList[pid, default: []].append((item: item, shareAmount: finalShare))
-            }
+            let selected = mode == .even ? ids : ids.filter { effective[item.id]?.contains($0) == true }
+            let parts = try TripMath.allocate(TripCurrency.minor(item.amount, currency), ids: selected, weights: selected.map { _ in 1 })
+            for (id, units) in parts { base[id, default: 0] += units; lists[id, default: []].append((item, Decimal(units) / factor)) }
         }
-
-        // Unassigned items split evenly as fallback
-        let unassignedTotal = unassigned.reduce(Decimal(0)) { $0 + $1.amount }
-        let unassignedPerPerson = round2(unassignedTotal / n)
-
-        let itemSubtotalForProportion = receipt.itemSubtotal
-
-        let results = people.map { person -> PersonResult in
-            let myItems = personItems[person.id, default: 0] + unassignedPerPerson
-
-            let feeShare: Decimal
-            let discountShare: Decimal
-
-            switch feeDistribution {
-            case .even:
-                feeShare = round2(receipt.surchargeTotal / n)
-            case .proportional:
-                let proportion: Decimal = itemSubtotalForProportion > 0
-                    ? myItems / itemSubtotalForProportion
-                    : Decimal(1) / n
-                feeShare = round2(receipt.surchargeTotal * proportion)
-            }
-
-            switch discountDistribution {
-            case .even:
-                discountShare = round2(receipt.discountTotal / n)
-            case .proportional:
-                let proportion: Decimal = itemSubtotalForProportion > 0
-                    ? myItems / itemSubtotalForProportion
-                    : Decimal(1) / n
-                discountShare = round2(receipt.discountTotal * proportion)
-            }
-
-            let total = max(0, myItems + feeShare + discountShare)
-            return PersonResult(
-                id: person.id,
-                name: person.name,
-                avatarColorIndex: person.colorIndex,
-                assignedItems: personItemList[person.id, default: []],
-                itemSubtotal: myItems,
-                feeShare: feeShare,
-                discountShare: discountShare,
-                total: total
-            )
+        let weights = ids.map { Decimal(base[$0] ?? 0) }
+        func extras(_ value: Decimal, distribution: FeeDistribution) throws -> [UUID: Int64] {
+            try TripMath.allocate(TripCurrency.minor(value, currency), ids: ids,
+                                  weights: mode == .even || distribution == .even || weights.reduce(0, +) == 0 ? ids.map { _ in 1 } : weights)
         }
-
-        return SplitResult(personResults: results, unassignedItems: unassigned,
-                           feeDistribution: feeDistribution, splitMode: .itemized)
-    }
-
-    // MARK: - Rounding
-
-    private static func round2(_ value: Decimal) -> Decimal {
-        var input = value
-        var result = Decimal()
-        NSDecimalRound(&result, &input, 2, .plain)
-        return result
+        let fees = try extras(receipt.surchargeTotal, distribution: feeDistribution)
+        let discounts = try extras(receipt.discountTotal, distribution: discountDistribution)
+        return SplitResult(personResults: people.map { p in
+            PersonResult(id: p.id, name: p.name, avatarColorIndex: p.colorIndex,
+                         assignedItems: mode == .even ? [] : lists[p.id] ?? [],
+                         itemSubtotal: Decimal(base[p.id] ?? 0) / factor,
+                         feeShare: Decimal(fees[p.id] ?? 0) / factor,
+                         discountShare: Decimal(discounts[p.id] ?? 0) / factor,
+                         total: Decimal(expense.shares[p.id] ?? 0) / factor)
+        }, unassignedItems: mode == .even ? [] : unassigned, feeDistribution: feeDistribution, splitMode: mode)
     }
 }

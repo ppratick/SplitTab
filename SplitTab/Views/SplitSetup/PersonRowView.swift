@@ -11,13 +11,13 @@ struct PersonRowView: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            PersonAvatar(person: person, size: 40)
 
             TextField("Name", text: $name)
-                .font(.system(.body, design: .rounded))
+                .font(.system(.body, design: .rounded, weight: .medium))
                 .textInputAutocapitalization(.words)
                 .focused($isFocused)
-                .onSubmit { onNameChange(name) }
+                .submitLabel(.done)
+                .onSubmit { onNameChange(name); isFocused = false }
                 .onChange(of: name) { _, newValue in
                     onNameChange(newValue)
                 }
@@ -28,9 +28,11 @@ struct PersonRowView: View {
             Spacer()
 
             Button(action: onDelete) {
-                Image(systemName: "minus.circle.fill")
-                    .font(.system(size: 22))
-                    .foregroundStyle(.red.opacity(0.7))
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.3))
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(Color.white.opacity(0.06)))
             }
             .buttonStyle(.plain)
         }

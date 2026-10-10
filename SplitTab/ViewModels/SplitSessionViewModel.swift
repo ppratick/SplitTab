@@ -5,6 +5,8 @@ import Observation
 final class SplitSessionViewModel {
 
     // MARK: - Receipt State
+    var currencyCode = "USD"
+    var calculationError: String?
     var receipt: ReceiptData?
 
     // MARK: - People
@@ -130,14 +132,18 @@ final class SplitSessionViewModel {
 
     func calculate() {
         guard let receipt, !people.isEmpty else { return }
-        splitResult = SplitCalculator.calculate(
+        do {
+        splitResult = try SplitCalculator.calculate(
             receipt: receipt,
             people: people,
             mode: splitMode,
             assignments: assignments,
             feeDistribution: feeDistribution,
-            discountDistribution: discountDistribution
+            discountDistribution: discountDistribution,
+            currency: currencyCode
         )
+        calculationError = nil
+        } catch { splitResult = nil; calculationError = error.localizedDescription }
     }
 
     // MARK: - Navigation Helpers
@@ -148,7 +154,7 @@ final class SplitSessionViewModel {
 
     func navigateToResults() {
         calculate()
-        navigate(to: .results)
+        if splitResult != nil { navigate(to: .results) }
     }
 
     // MARK: - Reset

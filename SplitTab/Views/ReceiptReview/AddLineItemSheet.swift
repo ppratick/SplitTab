@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct AddLineItemSheet: View {
+    @Environment(\.tripCurrencyCode) private var tripCurrencyCode
     var baseAmount: Decimal
     var onAdd: (LineItem) -> Void
 
@@ -22,20 +23,20 @@ struct AddLineItemSheet: View {
     private var computedAmount: Decimal? {
         switch inputMode {
         case .dollar:
-            return Decimal(string: amountText).flatMap { $0 > 0 ? $0 : nil }
+            return (try? TripCurrency.parse(amountText)).flatMap { $0 > 0 ? $0 : nil }
         case .percentage:
             guard let pct = Decimal(string: percentText), pct > 0 else { return nil }
-            return Decimal.roundToTwo(baseAmount * pct / 100)
+            return Decimal.roundCurrency(baseAmount * pct / 100, code: tripCurrencyCode)
         }
     }
 
     private var computedPreview: String? {
         guard inputMode == .percentage, let amt = computedAmount else { return nil }
-        return amt.currencyString
+        return amt.currencyString(code: tripCurrencyCode)
     }
 
     private var canSave: Bool {
-        !name.isEmpty && computedAmount != nil
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && computedAmount.map { (try? TripCurrency.minor($0, tripCurrencyCode ?? "USD")) != nil } == true
     }
 
     // MARK: - Body
@@ -64,7 +65,7 @@ struct AddLineItemSheet: View {
 
                                 if supportsPct {
                                     Picker("Input Mode", selection: $inputMode) {
-                                        Text("$ Fixed").tag(InputMode.dollar)
+                                        Text("Fixed").tag(InputMode.dollar)
                                         Text("% of subtotal").tag(InputMode.percentage)
                                     }
                                     .pickerStyle(.segmented)
@@ -72,7 +73,7 @@ struct AddLineItemSheet: View {
                                         switch newMode {
                                         case .dollar:
                                             if let pct = Decimal(string: percentText), pct > 0, baseAmount > 0 {
-                                                let v = Decimal.roundToTwo(baseAmount * pct / 100)
+                                                let v = Decimal.roundCurrency(baseAmount * pct / 100, code: tripCurrencyCode)
                                                 amountText = NSDecimalNumber(decimal: v).stringValue
                                             }
                                         case .percentage:
@@ -93,7 +94,7 @@ struct AddLineItemSheet: View {
                                             .foregroundStyle(.secondary)
                                         Spacer()
                                         HStack(spacing: 0) {
-                                            Text("$")
+                                            Text(tripCurrencyCode ?? "$")
                                                 .foregroundStyle(.secondary)
                                                 .font(.system(.body, design: .rounded, weight: .semibold))
                                             TextField("0.00", text: $amountText)
@@ -174,7 +175,8 @@ struct AddLineItemSheet: View {
                 }
                 .scrollDismissesKeyboard(.interactively)
             }
-            .navigationTitle("Add Item")
+            .keyboardDismissButton()
+        .navigationTitle("Add Item")
             .navigationBarTitleDisplayMode(.inline)
             .preferredColorScheme(.dark)
             .toolbar {

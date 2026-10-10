@@ -1,26 +1,28 @@
 import SwiftUI
 
 struct AssignableItemRow: View {
+    @Environment(\.tripCurrencyCode) private var tripCurrencyCode
     let item: LineItem
     let people: [Person]
     let assignedPeople: [Person]
     var onToggle: (UUID) -> Void
     var onDelete: (() -> Void)? = nil
-    /// Shared across all rows — whichever item's ID is set is the one expanded.
-    @Binding var expandedItemID: UUID?
-
-    private var isExpanded: Bool { expandedItemID == item.id }
+    @State private var isExpanded = true
+    private var isAssigned: Bool { !assignedPeople.isEmpty }
 
     var body: some View {
         VStack(spacing: 0) {
-            // Main row
             Button {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    expandedItemID = isExpanded ? nil : item.id
+                    isExpanded.toggle()
                 }
             } label: {
                 HStack(spacing: 14) {
-                    // Item info
+                    // Left accent indicator
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(isAssigned ? Color.splitAccent : Color.white.opacity(0.1))
+                        .frame(width: 3, height: 32)
+
                     VStack(alignment: .leading, spacing: 3) {
                         Text(item.name)
                             .font(.system(.body, design: .rounded, weight: .medium))
@@ -29,38 +31,36 @@ struct AssignableItemRow: View {
                             .multilineTextAlignment(.leading)
                         if !assignedPeople.isEmpty {
                             Text(assignedPeople.map(\.name).joined(separator: ", "))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                                .font(.system(.caption2, design: .rounded))
+                                .foregroundStyle(Color.splitAccent.opacity(0.7))
                                 .lineLimit(1)
                         }
                     }
 
                     Spacer()
 
-                    // Stacked avatars or unassigned badge
                     if assignedPeople.isEmpty {
                         Text("Unassigned")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .font(.system(.caption2, design: .rounded, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.35))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(
-                                Capsule().fill(Color.white.opacity(0.07))
+                                Capsule().fill(Color.white.opacity(0.06))
                             )
                     } else {
-                        StackedAvatars(people: assignedPeople, size: 28)
+                        StackedAvatars(people: assignedPeople, size: 26)
                     }
 
-                    // Amount
-                    Text(item.amount.currencyString)
-                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                    Text(item.amount.currencyString(code: tripCurrencyCode))
+                        .font(.system(.subheadline, design: .rounded, weight: .bold))
                         .foregroundStyle(.primary)
                         .monospacedDigit()
                         .frame(minWidth: 58, alignment: .trailing)
 
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.25))
                         .rotationEffect(.degrees(isExpanded ? 180 : 0))
                 }
                 .padding(.horizontal, 16)
@@ -68,9 +68,8 @@ struct AssignableItemRow: View {
             }
             .buttonStyle(.plain)
 
-            // Expanded chip picker
             if isExpanded {
-                Divider().overlay(Color.white.opacity(0.08))
+                Divider().overlay(Color.white.opacity(0.06))
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {

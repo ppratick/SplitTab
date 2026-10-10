@@ -45,7 +45,7 @@ struct GlassCapsuleButton: View {
                     .frame(maxWidth: .infinity)
                     .background(
                         Capsule().fill(LinearGradient(
-                            colors: [Color.splitTeal, Color.splitAccent],
+                            colors: [Color.splitSky, Color.splitAccent],
                             startPoint: .leading,
                             endPoint: .trailing))
                     )

@@ -38,7 +38,7 @@ enum LineItemCategory: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-struct LineItem: Identifiable, Equatable, Hashable {
+struct LineItem: Identifiable, Equatable, Hashable, Codable {
     var id = UUID()
     var name: String
     var amount: Decimal

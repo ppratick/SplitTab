@@ -1,9 +1,10 @@
 import Foundation
 
-struct ReceiptData: Equatable {
+struct ReceiptData: Equatable, Codable {
     var items: [LineItem]        // .item
     var surcharges: [LineItem]   // .tax, .tip, .fee
     var discounts: [LineItem]    // .discount
+    var merchantName: String? = nil
     var parsedTotal: Decimal?    // raw total from OCR
 
     var itemSubtotal: Decimal {

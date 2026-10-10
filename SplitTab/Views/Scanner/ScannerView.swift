@@ -98,10 +98,17 @@ struct ScannerView: View {
 
     private var bottomBar: some View {
         VStack(spacing: 16) {
-            Text("Analyzing with AI...")
-                .font(.system(.caption, design: .rounded, weight: .medium))
-                .foregroundStyle(.secondary)
-                .opacity(isProcessing ? 1 : 0)
+            if isProcessing {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .tint(Color.splitAccent)
+                        .scaleEffect(0.8)
+                    Text("Analyzing with AI...")
+                        .font(.system(.caption, design: .rounded, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+                .transition(.opacity)
+            }
 
             Button {
                 guard !isProcessing else { return }
@@ -109,11 +116,15 @@ struct ScannerView: View {
                 captureTrigger = true
             } label: {
                 Label("Use This Scan", systemImage: "checkmark.circle.fill")
-                    .font(.system(.body, design: .rounded, weight: .semibold))
-                    .foregroundStyle(.black.opacity(0.8))
+                    .font(.system(.body, design: .rounded, weight: .bold))
+                    .foregroundStyle(.black.opacity(0.85))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 18)
-                    .background(Capsule().fill(Color.splitAccent))
+                    .background(
+                        Capsule()
+                            .fill(Color.splitAccent)
+                            .shadow(color: Color.splitAccent.opacity(0.3), radius: 12, y: 4)
+                    )
             }
             .buttonStyle(.plain)
             .disabled(isProcessing)

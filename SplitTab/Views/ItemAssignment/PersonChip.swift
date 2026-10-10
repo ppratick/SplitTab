@@ -8,19 +8,10 @@ struct PersonChip: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                Circle()
-                    .fill(person.avatarColor)
-                    .frame(width: 22, height: 22)
-                    .overlay(
-                        Text(initials)
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.black.opacity(0.7))
-                    )
-
                 Text(person.name)
-                    .font(.system(.caption, design: .rounded, weight: .semibold))
+                    .font(.system(.caption, design: .rounded, weight: .bold))
                     .lineLimit(1)
-                    .foregroundStyle(isSelected ? .black.opacity(0.8) : .primary)
+                    .foregroundStyle(isSelected ? .black.opacity(0.85) : .primary)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
@@ -34,9 +25,11 @@ struct PersonChip: View {
                                 lineWidth: 1
                             )
                     )
+                    .shadow(color: isSelected ? person.avatarColor.opacity(0.2) : .clear, radius: 6, y: 2)
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(person.name)
         .animation(.spring(response: 0.25, dampingFraction: 0.8), value: isSelected)
     }
 

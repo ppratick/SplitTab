@@ -11,9 +11,11 @@ struct PersonAvatar: View {
                 Circle()
                     .fill(person.avatarColor)
                     .frame(width: size, height: size)
+                    .shadow(color: person.avatarColor.opacity(0.3), radius: size * 0.2, y: 2)
+
                 Text(initials)
-                    .font(.system(size: size * 0.38, weight: .bold, design: .rounded))
-                    .foregroundStyle(.black.opacity(0.7))
+                    .font(.system(size: size * 0.36, weight: .bold, design: .rounded))
+                    .foregroundStyle(.black.opacity(0.75))
             }
             if showName {
                 Text(person.name)

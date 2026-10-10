@@ -5,10 +5,11 @@ struct OpenAIReceiptService {
     private static let prompt = """
     Extract all line items from this receipt. \
     Return ONLY raw JSON with no markdown or backticks: \
-    {"items": [{"name": "item name", "price": 0.00}], \
+    {"merchant_name": null, "items": [{"name": "item name", "price": 0.00}], \
     "fees": [{"name": "fee name", "price": 0.00}], \
     "discounts": [{"name": "discount name", "price": 0.00}], \
     "subtotal": 0.00, "tax": 0.00, "tax_pct": null, "tip": 0.00, "tip_pct": null}. \
+    "merchant_name" = the merchant, restaurant, or activity printed on the receipt. Return its name as a string, or null if absent or unreadable. Do not guess. \
     "items" = all purchasable items on the receipt. \
     "fees" = any extra charges such as delivery fee, service fee, bag fee, regulatory fee, convenience fee, or similar (use positive prices). \
     "discounts" = any reductions such as coupons, promotions, member discounts, or credits (use positive prices — the app will negate them). \
@@ -18,11 +19,11 @@ struct OpenAIReceiptService {
     and tip suggestion lines like 16%-$16.84. Use English names only.
     """
 
-    /// Send a receipt image to GPT-4o Vision and return structured ReceiptData.
+    /// Send a receipt image to GPT-6 Luna and return structured ReceiptData.
     static func parseReceipt(image: UIImage) async throws -> ReceiptData {
-        let apiKey = ReceiptAPIConfiguration.apiKey
+        let apiKey = try ReceiptAPIConfiguration.apiKey()
         guard !apiKey.isEmpty else {
-            throw ScanError.apiError("AI scanning needs a local OPENAI_API_KEY. You can still enter receipt items manually.")
+            throw ScanError.apiError("Add your OpenAI API key in SplitTab Home → Settings → Receipt scanning. You can still enter receipt items manually.")
         }
         let resized = resize(image, maxDimension: 1536)
         guard let jpeg = resized.jpegData(compressionQuality: 0.82) else {
@@ -31,8 +32,9 @@ struct OpenAIReceiptService {
         let base64 = jpeg.base64EncodedString()
 
         let body: [String: Any] = [
-            "model": "gpt-4o",
-            "max_tokens": 1000,
+            "model": "gpt-6-luna",
+            "reasoning_effort": "none",
+            "max_completion_tokens": 4000,
             "messages": [
                 [
                     "role": "user",
@@ -156,7 +158,7 @@ struct OpenAIReceiptService {
               + discounts.reduce(Decimal(0)) { $0 + $1.amount }
             : nil
 
-        return ReceiptData(items: items, surcharges: surcharges, discounts: discounts, parsedTotal: parsedTotal)
+        return ReceiptData(items: items, surcharges: surcharges, discounts: discounts, merchantName: (parsed["merchant_name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), parsedTotal: parsedTotal)
     }
 
     /// Safely extract a Double from either a JSON Double or Int value.

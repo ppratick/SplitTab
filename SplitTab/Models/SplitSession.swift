@@ -21,7 +21,7 @@ enum SplitMode: String, CaseIterable, Identifiable {
     }
 }
 
-enum FeeDistribution: String, CaseIterable, Identifiable {
+enum FeeDistribution: String, CaseIterable, Identifiable, Codable {
     case proportional = "Proportional"
     case even         = "Even"
 

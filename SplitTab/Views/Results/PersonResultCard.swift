@@ -1,24 +1,35 @@
 import SwiftUI
 
 struct PersonResultCard: View {
+    @Environment(\.tripCurrencyCode) private var currencyCode
     let result: PersonResult
     let splitMode: SplitMode
     @State private var isExpanded = false
     @State private var copied = false
 
+    private var personColor: Color {
+        Person.palette[result.avatarColorIndex % Person.palette.count]
+    }
+
     var body: some View {
-        GlassCard(padding: 0) {
+        VStack(spacing: 0) {
+            // Colored accent bar at top
+            RoundedRectangle(cornerRadius: 2)
+                .fill(personColor.opacity(0.5))
+                .frame(height: 3)
+                .padding(.horizontal, 20)
+                .padding(.top, 2)
+
             VStack(spacing: 0) {
                 HStack(spacing: 14) {
-                    PersonAvatar(person: fakePerson, size: 44)
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text(result.name)
-                            .font(.system(.body, design: .rounded, weight: .semibold))
+                            .font(.system(.body, design: .rounded, weight: .bold))
                             .foregroundStyle(.primary)
-                        Text("Tap to see breakdown")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        Text(isExpanded ? "Breakdown" : "Tap to expand")
+                            .font(.system(.caption2, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.35))
                     }
 
                     Spacer()
@@ -27,31 +38,13 @@ struct PersonResultCard: View {
                         CurrencyText(
                             amount: result.total,
                             font: .system(.title2, design: .rounded, weight: .bold),
-                            color: fakePerson.avatarColor
+                            color: personColor
                         )
-                        Text("total")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
                     }
-
-                    Button {
-                        UIPasteboard.general.string = result.total.currencyString
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { copied = true }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                            withAnimation { copied = false }
-                        }
-                    } label: {
-                        Image(systemName: copied ? "checkmark" : "doc.on.doc.fill")
-                            .font(.system(size: 13))
-                            .foregroundStyle(copied ? Color.splitAccent : Color.secondary)
-                            .frame(width: 30, height: 30)
-                            .glassEffect(.regular.interactive(), in: Circle())
-                    }
-                    .buttonStyle(.plain)
 
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.3))
                         .rotationEffect(.degrees(isExpanded ? 180 : 0))
                 }
                 .padding(.horizontal, 18)
@@ -63,12 +56,42 @@ struct PersonResultCard: View {
                     }
                 }
 
+                HStack(spacing: 16) {
+                    Button("Copy total", systemImage: "doc.on.doc") { copy(breakdown: false) }
+                        .accessibilityIdentifier("copy.person.total.\(result.id)")
+                    Button("Copy breakdown", systemImage: "list.bullet.clipboard") { copy(breakdown: true) }
+                        .accessibilityIdentifier("copy.person.breakdown.\(result.id)")
+                    if copied { Image(systemName: "checkmark").accessibilityLabel("Copied") }
+                }
+                .font(.system(.caption, design: .rounded, weight: .semibold))
+                .tint(Color.splitAccent).buttonStyle(.plain)
+                .padding(.horizontal, 18).padding(.bottom, 14)
+
                 if isExpanded {
-                    Divider().overlay(Color.white.opacity(0.06))
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(Color.white.opacity(0.05))
+                        .frame(height: 1)
+                        .padding(.horizontal, 18)
+
                     breakdownSection
                 }
             }
         }
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.white.opacity(0.03))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+                )
+        )
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+
+    private func copy(breakdown: Bool) {
+        ShareClipboard.copy(SplitCopyText.person(result, currency: currencyCode ?? "USD", breakdown: breakdown))
+        copied = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
     }
 
     // MARK: - Breakdown
@@ -88,7 +111,10 @@ struct PersonResultCard: View {
                 }
             }
 
-            Divider().overlay(Color.white.opacity(0.05)).padding(.horizontal, 18)
+            RoundedRectangle(cornerRadius: 1)
+                .fill(Color.white.opacity(0.04))
+                .frame(height: 1)
+                .padding(.horizontal, 18)
 
             breakdownRow(label: "Subtotal", amount: result.itemSubtotal, bold: true)
 
@@ -97,10 +123,16 @@ struct PersonResultCard: View {
             }
 
             if result.discountShare != 0 {
-                breakdownRow(label: "Discounts", amount: result.discountShare, color: Color.splitAccent)
+                breakdownRow(label: "Discounts", amount: result.discountShare, color: Color.splitViolet)
             }
 
-            Divider().overlay(Color.white.opacity(0.08)).padding(.horizontal, 18)
+            RoundedRectangle(cornerRadius: 1)
+                .fill(Color.white.opacity(0.06))
+                .frame(height: 1)
+                .padding(.horizontal, 18)
+
+            let adjustment = result.total - result.itemSubtotal - result.feeShare - result.discountShare
+            if adjustment != 0 { breakdownRow(label: "Rounding adjustment", amount: adjustment) }
 
             HStack {
                 Text("Total")
@@ -109,7 +141,7 @@ struct PersonResultCard: View {
                 CurrencyText(
                     amount: result.total,
                     font: .system(.body, design: .rounded, weight: .bold),
-                    color: fakePerson.avatarColor
+                    color: personColor
                 )
             }
             .padding(.horizontal, 18)
@@ -120,8 +152,10 @@ struct PersonResultCard: View {
 
     private func sectionHeader(_ title: String, color: Color) -> some View {
         Text(title)
-            .font(.system(.caption2, design: .rounded, weight: .semibold))
-            .foregroundStyle(color)
+            .font(.system(.caption2, design: .rounded, weight: .bold))
+            .foregroundStyle(color.opacity(0.7))
+            .textCase(.uppercase)
+            .tracking(0.3)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 18)
             .padding(.top, 12)
