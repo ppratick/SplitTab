@@ -27,9 +27,9 @@ struct TripExpenseEditor: View {
     var body: some View {
         Group {
             if !existing && !captured {
-                HomeView(tripName: trip?.name ?? "Trip", initialCurrency: trip?.currency ?? "USD", onBack: { dismiss() }) { receipt, code in
+                HomeView(tripID: tripID, tripName: trip?.name ?? "Trip", initialCurrency: trip?.currency ?? "USD", onBack: { dismiss() }) { receipt, code in
                     currency = code
-                    rate = code == trip?.currency ? "1" : ""
+                    rate = code == trip?.currency ? "1" : receipt?.inferredRate(to: trip?.currency ?? "USD").map { NSDecimalNumber(decimal: $0).stringValue } ?? ""
                     session.receipt = receipt ?? .empty
                     session.currencyCode = code
                     useReceipt = receipt != nil
@@ -43,6 +43,12 @@ struct TripExpenseEditor: View {
                 }
             } else if manualReceipt { manualFlow }
             else { editor }
+        }
+        .onAppear { session.activityTripID = tripID }
+        .onChange(of: session.currencyCode) { _, code in
+            guard session.receipt != nil else { return }
+            currency = code
+            rate = code == trip?.currency ? "1" : session.receipt?.inferredRate(to: trip?.currency ?? "USD").map { NSDecimalNumber(decimal: $0).stringValue } ?? ""
         }
     }
     private var manualFlow: some View {
@@ -349,9 +355,10 @@ struct TripReceiptFlow: View {
 
         }
         .environment(session)
-        .environment(\.tripCurrencyCode, currency)
+        .environment(\.tripCurrencyCode, session.currencyCode)
         .onAppear { session.navigationPath = NavigationPath(); session.currencyCode = currency }
         .tripError(Binding(get: { session.calculationError }, set: { session.calculationError = $0 }))
+        .tripError(Binding(get: { session.historyError }, set: { session.historyError = $0 }))
     }
     private var results: some View {
         ResultsView(onSaveToTrip: {

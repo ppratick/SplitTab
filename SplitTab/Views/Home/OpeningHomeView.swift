@@ -17,6 +17,7 @@ struct OpeningHomeView: View {
             }.first
     }
     var body: some View {
+        NavigationStack {
         ZStack {
             Color.splitBg.ignoresSafeArea()
             Circle().fill(Color.splitAccent.opacity(0.1)).frame(width: 300, height: 300).blur(radius: 85).offset(y: -220).allowsHitTesting(false)
@@ -55,9 +56,15 @@ struct OpeningHomeView: View {
                             }.buttonStyle(.plain).accessibilityIdentifier("home.recent")
                         }.padding(.top, 8)
                     }
+                    if let store {
+                        NavigationLink { ArchiveLibraryView(store: store) } label: {
+                            Label("Receipts & history", systemImage: "clock.arrow.circlepath")
+                        }.accessibilityIdentifier("home.archive")
+                    }
                     Spacer(minLength: 24)
                 }.padding(.horizontal, 24)
             }
+        }
         }
         .sheet(isPresented: $showingSettings) { ReceiptSettingsView() }
         .fullScreenCover(item: $destination) { destination in

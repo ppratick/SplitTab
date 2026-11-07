@@ -9,7 +9,7 @@ final class SplitCopyTests: XCTestCase {
         let receipt = ReceiptData(items: [item], surcharges: [LineItem(name: "Tip", amount: 4, category: .tip)], discounts: [LineItem(name: "Coupon", amount: -2, category: .discount)], merchantName: "Beach Cafe", parsedTotal: nil)
         let result = try SplitCalculator.calculate(receipt: receipt, people: [a,b], mode: .itemized, assignments: [item.id: Set([a.id,b.id])], feeDistribution: .even)
         let person = result.personResults[0]
-        XCTAssertEqual(SplitCopyText.person(person, currency: "USD", breakdown: false), "Alex\nTotal: USD 11.00")
+        XCTAssertEqual(SplitCopyText.person(person, currency: "USD", breakdown: false), "*Alex*\n*Total: USD 11.00*")
         let details = SplitCopyText.person(person, currency: "USD", breakdown: true)
         for expected in ["Alex", "Dinner: USD 10.00", "Tax, tip & fees: USD 2.00", "Discounts: USD -1.00", "Total: USD 11.00"] { XCTAssertTrue(details.contains(expected), details) }
         let totals = SplitCopyText.everyone(result, currency: "USD", title: receipt.merchantName, breakdown: false)

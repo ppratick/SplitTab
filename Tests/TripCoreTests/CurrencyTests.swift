@@ -101,7 +101,7 @@ final class CurrencyTests: XCTestCase {
     @MainActor func testOnDiskMigrationAndReportingCurrencyLock() throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".store")
         defer { for suffix in ["", "-wal", "-shm"] { try? FileManager.default.removeItem(atPath: url.path + suffix) } }
-        func container() throws -> ModelContainer { try ModelContainer(for: SavedTrip.self, configurations: ModelConfiguration("MigrationTest", url: url, cloudKitDatabase: .none)) }
+        func container() throws -> ModelContainer { try ModelContainer(for: SavedTrip.self, SavedActivity.self, configurations: ModelConfiguration("MigrationTest", url: url, cloudKitDatabase: .none)) }
         var old = trip(); old.save(try expense(3000, currency: "USD", rate: 1))
         let data = try legacyData(old)
         try autoreleasepool {
@@ -134,5 +134,118 @@ final class CurrencyTests: XCTestCase {
                 for p in result.personResults { _ = try TripCurrency.minor(p.total, currency); XCTAssertGreaterThanOrEqual(p.total, 0) }
             }
         }
+    }
+}
+
+final class ReceiptCurrencyRegressionTests: XCTestCase {
+    private func pizzaReceipt(total: String = "152.75", included: String = "null") throws -> ReceiptData {
+        let json = """
+        {"merchant_name":"Piazza Curaçao","currency":"CG",
+         "items":[{"name":"Pizza Diavola","price":32.75},{"name":"Pizza Diavola","price":32.75},
+         {"name":"Pizza Pollo","price":32.75},{"name":"Pizza TrioDCarne","price":35},
+         {"name":"CaribbeanSweetie","price":19.5}],
+         "fees":[],"discounts":[],"subtotal":152.75,"total":\(total),
+         "tax":12.61,"tax_pct":9,"tax_included":\(included),"tip":0,
+         "alternate_totals":[{"currency":"USD","total":87.29}]}
+        """
+        return try ReceiptData.extracted(from: Data(json.utf8))
+    }
+
+    func testCuracaoIncludedTaxAndPrintedCurrencyConversion() throws {
+        let receipt = try pizzaReceipt()
+        XCTAssertEqual(receipt.currencyCode, "XCG")
+        XCTAssertEqual(receipt.grandTotal, Decimal(string: "152.75"))
+        XCTAssertEqual(receipt.includedTax, Decimal(string: "12.61"))
+        XCTAssertTrue(receipt.surcharges.isEmpty)
+        XCTAssertNil(receipt.totalDiscrepancy)
+        let usd = try receipt.converted(to: "USD")
+        XCTAssertEqual(usd.currencyCode, "USD")
+        XCTAssertEqual(usd.grandTotal, Decimal(string: "87.29"))
+        XCTAssertEqual(usd.parsedTotal, Decimal(string: "87.29"))
+        XCTAssertEqual(usd.items.map(\.id), receipt.items.map(\.id))
+        XCTAssertTrue(usd.items.allSatisfy { $0.amount < 21 })
+        XCTAssertNil(usd.totalDiscrepancy)
+        XCTAssertEqual(usd.printedTotals?["XCG"], Decimal(string: "152.75"))
+        XCTAssertEqual(receipt.items[0].amount, Decimal(string: "32.75"))
+        let people = [Person(name: "A", colorIndex: 0), Person(name: "B", colorIndex: 1)]
+        let assignments = Dictionary(uniqueKeysWithValues: usd.items.enumerated().map { ($0.element.id, Set([people[$0.offset % 2].id])) })
+        let result = try SplitCalculator.calculate(receipt: usd, people: people, mode: .itemized, assignments: assignments, feeDistribution: .proportional, currency: "USD")
+        XCTAssertEqual(result.personResults.reduce(Decimal(0)) { $0 + $1.total }, Decimal(string: "87.29"))
+        var expense = TripExpense(title: "Pizza", payer: people[0].id, participants: people.map(\.id), mode: .itemized)
+        expense.receipt = usd
+        expense.assignments = assignments
+        expense.amount = 8729
+        let shares = try TripMath.shares(expense, currency: "USD")
+        XCTAssertEqual(shares.values.reduce(0, +), 8729)
+    }
+
+    func testExtraTaxRemainsPayableAndReferenceUsesActualPrintedTotal() throws {
+        let receipt = try pizzaReceipt(total: "165.36", included: "false")
+        XCTAssertEqual(receipt.surchargeTotal, Decimal(string: "12.61"))
+        XCTAssertNil(receipt.includedTax)
+        XCTAssertEqual(receipt.grandTotal, Decimal(string: "165.36"))
+        var wrong = receipt
+        wrong.items[0].amount += 1
+        XCTAssertEqual(wrong.totalDiscrepancy, -1)
+    }
+
+    func testUnreadableTotalDoesNotInventReferenceOrAssumeTaxIncluded() throws {
+        let receipt = try pizzaReceipt(total: "null")
+        XCTAssertNil(receipt.parsedTotal)
+        XCTAssertEqual(receipt.surchargeTotal, Decimal(string: "12.61"))
+        XCTAssertThrowsError(try receipt.converted(to: "EUR"))
+    }
+
+    func testSignedDiscountConversionReconcilesAndRateMustBePositive() throws {
+        var receipt = ReceiptData(items: [LineItem(name: "A", amount: 10, category: .item), LineItem(name: "B", amount: 10, category: .item)], surcharges: [], discounts: [LineItem(name: "Discount", amount: -1, category: .discount)], parsedTotal: 19)
+        receipt.currencyCode = "XCG"
+        let converted = try receipt.converted(to: "USD", rate: Decimal(string: "0.333")!)
+        XCTAssertEqual(converted.grandTotal, Decimal(string: "6.33"))
+        XCTAssertTrue(converted.discounts[0].amount < 0)
+        XCTAssertThrowsError(try receipt.converted(to: "USD", rate: 0))
+        XCTAssertThrowsError(try receipt.converted(to: "USD", rate: -1))
+    }
+
+    func testLegacyReceiptAndConversionMetadataRoundTrip() throws {
+        let legacy = Data(#"{"items":[],"surcharges":[],"discounts":[]}"#.utf8)
+        XCTAssertNil(try JSONDecoder().decode(ReceiptData.self, from: legacy).currencyCode)
+        let converted = try pizzaReceipt().converted(to: "USD")
+        XCTAssertEqual(try JSONDecoder().decode(ReceiptData.self, from: JSONEncoder().encode(converted)), converted)
+    }
+}
+
+final class ReceiptOriginalEditingTests: XCTestCase {
+    func testSingleCurrencyReceiptKeepsEditablePricesAndRecalculatesAfterEdits() throws {
+        var source = ReceiptData(items: [LineItem(name: "Pizza", amount: Decimal(string: "32.75")!, category: .item), LineItem(name: "Pasta", amount: 35, category: .item)], surcharges: [], discounts: [], parsedTotal: Decimal(string: "67.75")!)
+        source.currencyCode = "XCG"
+        let usd = try source.converted(to: "USD", rate: Decimal(string: "0.5714")!)
+        XCTAssertEqual(usd.editableReceipt.items, source.items)
+        var edited = usd.editableReceipt
+        edited.items[0].amount = 33
+        let updated = try edited.converted(to: "USD", rate: usd.conversion?.rate)
+        XCTAssertEqual(updated.grandTotal, Decimal(string: "38.86"))
+        XCTAssertEqual(updated.editableReceipt.items[0].amount, 33)
+        XCTAssertEqual(updated.items.map(\.id), source.items.map(\.id))
+        let changedRate = try updated.converted(to: "USD", rate: Decimal(string: "0.6")!)
+        XCTAssertEqual(changedRate.grandTotal, Decimal(string: "40.80"))
+        XCTAssertEqual(changedRate.editableReceipt.grandTotal, 68)
+        XCTAssertEqual(try changedRate.converted(to: "XCG").items, edited.items)
+        XCTAssertEqual(try JSONDecoder().decode(ReceiptData.self, from: JSONEncoder().encode(changedRate)).editableReceipt, edited)
+    }
+
+    func testConversionRepeatedlyUsesOriginalAmountsAndEditedFeesAndDiscounts() throws {
+        var source = ReceiptData(items: [LineItem(name: "Dinner", amount: 10, category: .item)], surcharges: [LineItem(name: "Tip", amount: 1, category: .tip)], discounts: [LineItem(name: "Coupon", amount: -1, category: .discount)], parsedTotal: 10)
+        source.currencyCode = "XCG"
+        var converted = try source.converted(to: "USD", rate: Decimal(string: "0.333")!)
+        for _ in 0..<10 { converted = try converted.converted(to: "USD") }
+        XCTAssertEqual(converted.grandTotal, Decimal(string: "3.33"))
+        XCTAssertEqual(converted.editableReceipt, source)
+        var edited = converted.editableReceipt
+        edited.surcharges[0].amount = 2
+        edited.discounts[0].amount = -2
+        let result = try edited.converted(to: "USD", rate: converted.conversion?.rate)
+        XCTAssertEqual(result.grandTotal, Decimal(string: "3.33"))
+        XCTAssertEqual(result.editableReceipt.surcharges[0].amount, 2)
+        XCTAssertEqual(result.editableReceipt.discounts[0].amount, -2)
     }
 }

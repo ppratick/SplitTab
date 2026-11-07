@@ -5,15 +5,32 @@ struct ReceiptReviewView: View {
     @Environment(\.tripCurrencyCode) private var tripCurrencyCode
     @Environment(SplitSessionViewModel.self) private var session
     @State private var showAddItem = false
+    @State private var showCurrency = false
+    @State private var targetCurrency = "USD"
+    @State private var conversionRate = ""
+    @State private var conversionError: String?
     @State private var invalidItems: Set<UUID> = []
 
     private var receipt: ReceiptData { session.receipt ?? .empty }
+    private var originalReceipt: ReceiptData { receipt.editableReceipt }
+    private var originalCurrency: String { originalReceipt.currencyCode ?? session.currencyCode }
+    private var calculatedCurrency: String? {
+        session.pendingReceiptCurrency ?? (receipt.original != nil ? session.currencyCode : nil)
+    }
+    private func rateText(for target: String) -> String {
+        let value = target == receipt.conversion?.targetCurrency ? receipt.conversion?.rate : originalReceipt.inferredRate(to: target)
+        return value.map { NSDecimalNumber(decimal: $0).stringValue } ?? ""
+    }
 
     var body: some View {
         ZStack {
             Color.splitBg.ignoresSafeArea()
 
             List {
+                    Section {
+                        currencyDetails
+                            .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                    }
                     if !receipt.items.isEmpty || !receipt.surcharges.isEmpty || !receipt.discounts.isEmpty {
                         Section { summaryCard.listRowInsets(EdgeInsets()).listRowBackground(Color.clear).listRowSeparator(.hidden) }
                     }
@@ -23,15 +40,15 @@ struct ReceiptReviewView: View {
                     }
 
                     if !receipt.items.isEmpty {
-                        itemSection(title: "Items", count: receipt.items.count, items: receipt.items, color: Color.splitAccent)
+                        itemSection(title: "Items", count: originalReceipt.items.count, items: originalReceipt.items, color: Color.splitAccent)
                     }
 
                     if !receipt.surcharges.isEmpty {
-                        itemSection(title: "Tax & Fees", count: receipt.surcharges.count, items: receipt.surcharges, color: Color.splitWarn)
+                        itemSection(title: "Tax & Fees", count: originalReceipt.surcharges.count, items: originalReceipt.surcharges, color: Color.splitWarn)
                     }
 
                     if !receipt.discounts.isEmpty {
-                        itemSection(title: "Discounts", count: receipt.discounts.count, items: receipt.discounts, color: Color.splitViolet)
+                        itemSection(title: "Discounts", count: originalReceipt.discounts.count, items: originalReceipt.discounts, color: Color.splitViolet)
                     }
 
                     if receipt.items.isEmpty && receipt.surcharges.isEmpty && receipt.discounts.isEmpty {
@@ -56,42 +73,145 @@ struct ReceiptReviewView: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Continue") {
-                    if let onContinue { onContinue() } else { session.navigate(to: .splitSetup) }
+                    if let pending = session.pendingReceiptCurrency {
+                        targetCurrency = pending
+                        conversionRate = rateText(for: pending)
+                        conversionError = nil
+                        showCurrency = true
+                    } else if let onContinue { onContinue() } else { session.navigate(to: .splitSetup) }
                 }
                 .font(.system(.body, design: .rounded, weight: .semibold))
                 .foregroundStyle(Color.splitAccent)
                 .disabled((receipt.items.isEmpty && receipt.surcharges.isEmpty) || !invalidItems.isEmpty)
             }
         }
+        .sheet(isPresented: $showCurrency) {
+            NavigationStack {
+                Form {
+                    Picker("Split currency", selection: $targetCurrency) {
+                        ForEach(TripCurrency.codes, id: \.self) { Text($0).tag($0) }
+                    }
+                    if targetCurrency != originalCurrency {
+                        HStack {
+                            Text("1 \(originalCurrency) =")
+                            TextField("Rate", text: $conversionRate).keyboardType(.decimalPad)
+                            Text(targetCurrency)
+                        }
+                        if originalReceipt.inferredRate(to: targetCurrency) != nil {
+                            Text("Rate inferred from the printed receipt totals. You can edit it.").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    if let conversionError { Text(conversionError).foregroundStyle(Color.splitWarn) }
+                }
+                .tripStyle().navigationTitle("Receipt currency")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showCurrency = false } }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Apply") {
+                            do {
+                                let rate = targetCurrency == originalCurrency ? nil : try TripCurrency.parse(conversionRate)
+                                try session.convertReceipt(to: targetCurrency, rate: rate)
+                                showCurrency = false
+                            } catch { conversionError = error.localizedDescription }
+                        }
+                    }
+                }
+                .onChange(of: targetCurrency) { _, target in
+                    conversionRate = rateText(for: target)
+                    conversionError = nil
+                }
+            }.preferredColorScheme(.dark)
+        }
         .sheet(isPresented: $showAddItem) {
-            AddLineItemSheet(baseAmount: receipt.itemSubtotal) { item in
+            AddLineItemSheet(baseAmount: originalReceipt.itemSubtotal) { item in
                 session.addLineItem(item)
-            }
+            }.environment(\.tripCurrencyCode, originalCurrency)
         }
         .preferredColorScheme(.dark)
+        .tripError(Binding(get: { session.calculationError }, set: { session.calculationError = $0 }))
     }
 
     // MARK: - Subviews
 
+    private var currencyDetails: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Split currency").foregroundStyle(.secondary)
+                Spacer()
+                Button(session.pendingReceiptCurrency ?? session.currencyCode, systemImage: "arrow.left.arrow.right") {
+                    targetCurrency = session.pendingReceiptCurrency ?? session.currencyCode
+                    conversionRate = rateText(for: targetCurrency)
+                    conversionError = nil
+                    showCurrency = true
+                }.tint(Color.splitAccent)
+            }
+            if let pending = session.pendingReceiptCurrency {
+                Text("Prices are in \(session.currencyCode). Enter the rate to split in \(pending).")
+                    .font(.caption).foregroundStyle(Color.splitWarn)
+            } else if let conversion = receipt.conversion, receipt.original != nil {
+                Button {
+                    targetCurrency = session.currencyCode
+                    conversionRate = rateText(for: targetCurrency)
+                    conversionError = nil
+                    showCurrency = true
+                } label: {
+                    Text("1 \(originalCurrency) = \(conversion.rateLabel) \(session.currencyCode) · Edit rate")
+                        .font(.caption)
+                }.tint(Color.splitAccent)
+                Text("Edit the \(originalCurrency) prices below. \(session.currencyCode) updates automatically.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if let conversion = receipt.conversion, receipt.original == nil {
+                Text("Converted from \(conversion.sourceCurrency). Rescan to edit the original prices.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if let tax = receipt.includedTax, tax > 0 {
+                Text("Tax included in prices: \(TripCurrency.formatDecimal(tax, session.currencyCode))")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
     private var summaryCard: some View {
+        VStack(spacing: 12) {
+            if let calculatedCurrency {
+                receiptSummary(originalReceipt, heading: "Original · \(originalCurrency)")
+                    .environment(\.tripCurrencyCode, originalCurrency)
+                if session.pendingReceiptCurrency == nil {
+                    receiptSummary(receipt, heading: "Calculated · \(calculatedCurrency)")
+                        .environment(\.tripCurrencyCode, calculatedCurrency)
+                } else {
+                    Text("Calculated · \(calculatedCurrency) — enter an exchange rate")
+                        .font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 20)
+                }
+            } else { receiptSummary(receipt) }
+        }
+    }
+
+    private func receiptSummary(_ value: ReceiptData, heading: String? = nil) -> some View {
         GlassCard(cornerRadius: 24, padding: 22) {
             VStack(spacing: 16) {
+                if let heading {
+                    Text(heading).font(.system(.caption, design: .rounded, weight: .semibold))
+                        .foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+                }
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Subtotal")
                             .font(.system(.caption, design: .rounded, weight: .medium))
                             .foregroundStyle(.white.opacity(0.5))
-                        CurrencyText(amount: receipt.itemSubtotal,
+                        CurrencyText(amount: value.itemSubtotal,
                                      font: .system(.title3, design: .rounded, weight: .bold))
                     }
                     Spacer()
 
-                    if receipt.surchargeTotal > 0 {
+                    if value.surchargeTotal > 0 {
                         VStack(alignment: .center, spacing: 4) {
                             Text("Tax & Fees")
                                 .font(.system(.caption, design: .rounded, weight: .medium))
                                 .foregroundStyle(.white.opacity(0.5))
-                            CurrencyText(amount: receipt.surchargeTotal,
+                            CurrencyText(amount: value.surchargeTotal,
                                          font: .system(.title3, design: .rounded, weight: .bold),
                                          color: Color.splitWarn)
                         }
@@ -102,7 +222,7 @@ struct ReceiptReviewView: View {
                         Text("Total")
                             .font(.system(.caption, design: .rounded, weight: .medium))
                             .foregroundStyle(.white.opacity(0.5))
-                        CurrencyText(amount: receipt.grandTotal,
+                        CurrencyText(amount: value.grandTotal,
                                      font: .system(.title2, design: .rounded, weight: .bold),
                                      color: Color.splitAccent)
                     }
@@ -146,12 +266,15 @@ struct ReceiptReviewView: View {
             ForEach(items) { item in
                 LineItemRow(
                     item: item,
-                    baseAmount: receipt.itemSubtotal,
+                    baseAmount: originalReceipt.itemSubtotal,
+                    convertedAmount: session.pendingReceiptCurrency == nil && calculatedCurrency != nil ? (receipt.items + receipt.surcharges + receipt.discounts).first { $0.id == item.id }?.amount : nil,
+                    convertedCurrency: calculatedCurrency,
                     onUpdate: { session.updateLineItem($0) },
                     onValidation: { invalid in
-                        if invalid { invalidItems.insert(item.id) } else { invalidItems.remove(item.id) }
+                        if invalid || session.calculationError != nil { invalidItems.insert(item.id) } else { invalidItems.remove(item.id) }
                     }
                 )
+                .environment(\.tripCurrencyCode, originalCurrency)
                 .padding(.vertical, 6)
                 .listRowBackground(Color.splitCard)
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -165,7 +288,8 @@ struct ReceiptReviewView: View {
             HStack {
                 Text("\(title) · \(count)").foregroundStyle(color)
                 Spacer()
-                CurrencyText(amount: items.reduce(Decimal(0)) { $0 + $1.amount }, font: .caption, color: .secondary)
+                Text(TripCurrency.formatDecimal(items.reduce(Decimal(0)) { $0 + $1.amount }, originalCurrency))
+                    .font(.caption).foregroundStyle(.secondary)
             }.font(.system(.subheadline, design: .rounded, weight: .semibold)).textCase(nil)
         }
     }

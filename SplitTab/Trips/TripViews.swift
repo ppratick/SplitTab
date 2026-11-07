@@ -22,7 +22,7 @@ struct TripRootView: View {
     private func openStore() {
         do {
             let configuration = ModelConfiguration("SplitTabTrips", cloudKitDatabase: .none)
-            let container = try ModelContainer(for: SavedTrip.self, configurations: configuration)
+            let container = try ModelContainer(for: SavedTrip.self, SavedActivity.self, configurations: configuration)
             store = try TripStore(container: container)
             failure = nil
         } catch { failure = "Your database has not been reset. \(error.localizedDescription)" }
@@ -112,7 +112,7 @@ struct TripListView: View {
                 }
                 Button("Cancel", role: .cancel) { deletingTrip = nil }
             } message: {
-                Text("Delete “\(deletingTrip?.name ?? "this trip")” and all its participants, expenses, payments, and outstanding balances? This cannot be undone.")
+                Text("Remove “\(deletingTrip?.name ?? "this trip")” from your trips? Receipts and before/after records remain in History. Live balances will be removed.")
             }
             .tripError($error)
         }
@@ -171,6 +171,7 @@ struct TripDetailView: View {
     @State private var expense: TripExpense?
     @State private var payment: TripPayment?
     @State private var settlements = false
+    @State private var expandedPaymentDays: Set<Date> = []
     @State private var deletingExpense: TripExpense?
     @State private var deletingPayment: TripPayment?
     @State private var ending = false
@@ -189,6 +190,7 @@ struct TripDetailView: View {
                         Button("Add Expense", systemImage: "plus.circle.fill") { expense = TripExpense(payer: trip.me, participants: trip.participants.map(\.id)) }
                         Button("Record Payment", systemImage: "checkmark.circle") { payment = newPayment(trip) }.tint(Color.splitSky).disabled(trip.participants.count < 2)
                         Button("Settle Up", systemImage: "arrow.left.arrow.right") { settlements = true }.tint(Color.splitViolet)
+                        NavigationLink("Receipts & history", destination: ArchiveLibraryView(store: store, tripID: trip.id))
                     }
                     Section("Participant balances") {
                         ForEach(trip.participants) { person in
@@ -226,17 +228,42 @@ struct TripDetailView: View {
                     }
                     Section("Recorded payments") {
                         if trip.payments.isEmpty { Text("No confirmed payments recorded").foregroundStyle(.secondary) }
-                        ForEach(trip.payments.sorted { $0.createdAt > $1.createdAt }) { item in
-                            Button { payment = item } label: {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("\(trip.person(item.sender)) → \(trip.person(item.recipient)): \(TripCurrency.format(item.amount, item.fx?.currency ?? trip.currency))")
-                                    if let fx = item.fx, fx.currency != trip.currency { Text("\(fx.direction) · \(trip.money(item.balanceAmount)) applied").font(.caption).foregroundStyle(.secondary) }
-                                    Text(item.note.isEmpty ? item.createdAt.formatted(date: .abbreviated, time: .shortened) : item.note).font(.caption).foregroundStyle(.secondary)
-                                }.foregroundStyle(.primary)
+                        let groupedPayments = Dictionary(grouping: trip.payments) { Calendar.current.startOfDay(for: $0.createdAt) }
+                        ForEach(groupedPayments.keys.sorted(by: >), id: \.self) { day in
+                            let dayPayments = groupedPayments[day] ?? []
+                            DisclosureGroup(isExpanded: Binding(get: {
+                                expandedPaymentDays.contains(day)
+                            }, set: { expanded in
+                                if expanded { expandedPaymentDays.insert(day) }
+                                else { expandedPaymentDays.remove(day) }
+                            })) {
+                                ForEach(dayPayments.sorted { $0.createdAt > $1.createdAt }) { item in
+                                    Button { payment = item } label: {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("\(trip.person(item.sender)) → \(trip.person(item.recipient)): \(TripCurrency.format(item.amount, item.fx?.currency ?? trip.currency))")
+                                            if let fx = item.fx, fx.currency != trip.currency { Text("\(fx.direction) · \(trip.money(item.balanceAmount)) applied").font(.caption).foregroundStyle(.secondary) }
+                                            Text(item.note.isEmpty ? item.createdAt.formatted(date: .omitted, time: .shortened) : item.note).font(.caption).foregroundStyle(.secondary)
+                                        }.foregroundStyle(.primary)
+                                    }
+                                    .swipeActions(allowsFullSwipe: false) {
+                                        Button("Delete", role: .destructive) { deletingPayment = item }.tint(.red)
+                                    }
+                                }
+                            } label: {
+                                HStack(spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(day.formatted(date: .abbreviated, time: .omitted))
+                                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                                        Text("\(dayPayments.count) payment\(dayPayments.count == 1 ? "" : "s")")
+                                            .font(.caption).foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Text(trip.money(dayPayments.reduce(0) { $0 + $1.balanceAmount }))
+                                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                                        .foregroundStyle(Color.splitSky).monospacedDigit()
+                                }.padding(.vertical, 4)
                             }
-                            .swipeActions(allowsFullSwipe: false) {
-                                Button("Delete", role: .destructive) { deletingPayment = item }.tint(.red)
-                            }
+                            .tint(Color.splitSky)
                         }
                     }
                     Section {
@@ -277,7 +304,7 @@ struct TripDetailView: View {
                     }
                     Button("Cancel", role: .cancel) { }
                 } message: {
-                    Text("This permanently removes this trip and all its participants, expenses, payments, and outstanding balances. This cannot be undone.")
+                    Text("This removes the live trip and balances. Original receipts and before/after records remain in History.")
                 }
                 .confirmationDialog("End this trip? Outstanding balances and all records will be preserved. Settled trips are archived.", isPresented: $ending, titleVisibility: .visible) {
                     Button("End Trip") { var changed = trip; changed.status = changed.settled ? .archived : .ended; persist(changed) }
@@ -363,14 +390,19 @@ struct TripSettlementView: View {
     @Environment(TripStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     let tripID: UUID
-    @State private var payment: TripPayment?
-    @State private var copied = false
+    @State private var toast: String?
+    @State private var error: String?
     var body: some View {
         NavigationStack {
             ScrollView {
                 if let trip = store.trips.first(where: { $0.id == tripID }) {
                     let transfers = TripMath.settlements(trip)
                     LazyVStack(spacing: 20) {
+                        Text("Current unpaid balances").font(.headline).frame(maxWidth: .infinity, alignment: .leading)
+                        if let baseline = trip.settlementBaseline {
+                            Text("Previously settled through \(baseline.date.formatted(date: .abbreviated, time: .shortened)). Old receipts stay in history; later corrections still count.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
                         if !transfers.isEmpty {
                             HStack(spacing: 20) {
                                 Button("Copy totals", systemImage: "doc.on.doc") { copy(trip, breakdown: false) }
@@ -402,19 +434,39 @@ struct TripSettlementView: View {
             .navigationTitle("Settle Up")
             .toolbar { Button("Done") { dismiss() } }
             .overlay(alignment: .bottom) {
-                if copied {
-                    Text("Copied to clipboard").font(.caption.weight(.semibold))
+                if let toast {
+                    Text(toast).font(.caption.weight(.semibold))
                         .padding(12).background(.regularMaterial, in: Capsule()).padding()
-                        .task { try? await Task.sleep(for: .seconds(2)); copied = false }
+                        .task(id: toast) {
+                            do { try await Task.sleep(for: .seconds(2)) } catch { return }
+                            self.toast = nil
+                        }
                 }
             }
-            .sheet(item: $payment) { TripPaymentEditor(tripID: tripID, payment: $0) }
+            .tripError($error)
         }
     }
 
     private func copy(_ trip: TripRecord, sender: UUID? = nil, breakdown: Bool) {
-        ShareClipboard.copy(TripMath.settlementText(trip, sender: sender, breakdown: breakdown))
-        copied = true
+        do {
+            try ShareClipboard.copy(TripMath.settlementText(trip, sender: sender, breakdown: breakdown))
+            toast = "Copied to clipboard"
+        } catch { self.error = error.localizedDescription }
+    }
+
+    private func recordPayment(_ transfer: TripTransfer) {
+        guard var trip = store.trips.first(where: { $0.id == tripID }) else { return }
+        // Recheck the latest balance so a repeated tap cannot record it twice.
+        guard TripMath.settlements(trip).contains(where: {
+            $0.sender == transfer.sender && $0.recipient == transfer.recipient && $0.amount == transfer.amount
+        }) else { return }
+        do {
+            var payment = TripPayment(sender: transfer.sender, recipient: transfer.recipient, amount: transfer.amount)
+            payment.fx = try TripFX.make(amount: transfer.amount, currency: trip.currency, reporting: trip.currency, rate: 1)
+            trip.save(payment)
+            try store.save(trip)
+            toast = "Payment recorded"
+        } catch { self.error = error.localizedDescription }
     }
 
     private func recipientCard(_ trip: TripRecord, recipient: TripParticipant, incoming: [TripTransfer]) -> some View {
@@ -441,7 +493,7 @@ struct TripSettlementView: View {
                             VStack(spacing: 8) {
                                 ForEach(Array(TripMath.settlementBreakdown(trip, transfer: transfer).enumerated()), id: \.offset) { _, line in
                                     HStack(alignment: .top, spacing: 16) {
-                                        Text(line.label).frame(maxWidth: .infinity, alignment: .leading)
+                                        Text(line.amount < 0 ? "Subtract: " + line.label : line.label).frame(maxWidth: .infinity, alignment: .leading)
                                         Text(trip.money(line.amount)).monospacedDigit().fixedSize(horizontal: true, vertical: false)
                                     }
                                     .font(.system(.caption, design: .rounded))
@@ -475,7 +527,7 @@ struct TripSettlementView: View {
                             .accessibilityLabel("Copy repayments for " + trip.person(transfer.sender))
                             Spacer()
                             Button {
-                                payment = TripPayment(sender: transfer.sender, recipient: transfer.recipient, amount: transfer.amount)
+                                recordPayment(transfer)
                             } label: {
                                 Label("Record Payment", systemImage: "checkmark")
                                     .font(.system(.caption, design: .rounded, weight: .semibold))

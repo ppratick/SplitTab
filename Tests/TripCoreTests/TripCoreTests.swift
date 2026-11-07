@@ -205,17 +205,37 @@ final class TripCoreTests: XCTestCase {
         t.save(try expense(12000)); t.save(try expense(6000, payer: alex.id))
         let before = t
         let all = TripMath.settlementText(t, breakdown: false)
-        XCTAssertTrue(all.contains("Alex owes Me USD 20.00"))
-        XCTAssertTrue(all.contains("Sam owes Me USD 40.00"))
-        XCTAssertTrue(all.contains("Sam owes Alex USD 20.00"))
-        XCTAssertFalse(all.contains("Dinner"))
+        XCTAssertTrue(all.contains("Final payment: Alex → Me: USD 20.00"))
+        XCTAssertTrue(all.contains("Final payment: Sam → Me: USD 40.00"))
+        XCTAssertTrue(all.contains("Final payment: Sam → Alex: USD 20.00"))
+        XCTAssertTrue(all.contains("Includes: Dinner"))
+        XCTAssertFalse(all.contains("(Dinner, Dinner)"))
         let person = TripMath.settlementText(t, sender: sam.id, breakdown: false)
-        XCTAssertTrue(person.contains("Total to pay: USD 60.00"))
-        XCTAssertFalse(person.contains("Alex owes Me"))
+        XCTAssertTrue(person.contains("Total Sam sends: USD 60.00"))
+        XCTAssertFalse(person.contains("Final payment: Alex → Me:"))
         XCTAssertTrue(TripMath.settlementText(t, sender: sam.id, breakdown: true).contains("Dinner: USD 40.00"))
-        XCTAssertTrue(TripMath.settlementText(t, breakdown: true).contains("Offset: Dinner"))
+        XCTAssertTrue(TripMath.settlementText(t, breakdown: true).contains("Subtract what Alex covered Me"))
         XCTAssertEqual(t, before)
     }
+    func testCopiedTotalsNameOnlyTheRelevantExpensesAndDeduplicatePlaces() throws {
+        var t = trip()
+        for title in ["McDonalds", "Taxi", "Car Rental", "Taxi"] {
+            var e = try expense(9000, payer: alex.id)
+            e.title = title
+            t.save(e)
+        }
+        var offset = try expense(3000)
+        offset.title = "Lunch"
+        t.save(offset)
+        let text = TripMath.settlementText(t, sender: me.id, breakdown: false)
+        XCTAssertTrue(text.contains("Final payment: Me → Alex: USD 110.00"), text)
+        XCTAssertTrue(text.contains("Includes: McDonalds, Taxi, Car Rental, Lunch"), text)
+        XCTAssertFalse(text.contains("McDonalds:"), text)
+        let details = TripMath.settlementText(t, sender: me.id, breakdown: true)
+        XCTAssertTrue(details.contains("McDonalds: USD 30.00"), details)
+        XCTAssertTrue(details.contains("Subtract what Me covered Alex"), details)
+    }
+
     func testCurrenciesAndStrictParsing() throws {
         XCTAssertEqual(try TripCurrency.minor(Decimal(string: "1.234")!, "KWD"), 1234)
         XCTAssertEqual(try TripCurrency.minor(12, "JPY"), 12)
@@ -242,7 +262,7 @@ final class TripCoreTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appendingPathComponent("Trips.store")
         func container() throws -> ModelContainer {
-            try ModelContainer(for: SavedTrip.self, configurations: ModelConfiguration("DeleteTest", url: url, cloudKitDatabase: .none))
+            try ModelContainer(for: SavedTrip.self, SavedActivity.self, configurations: ModelConfiguration("DeleteTest", url: url, cloudKitDatabase: .none))
         }
         var deleted = trip(); deleted.save(try expense(12000))
         deleted.save(TripPayment(sender: sam.id, recipient: me.id, amount: 1000))
@@ -267,7 +287,7 @@ final class TripCoreTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appendingPathComponent("Trips.store")
         func container() throws -> ModelContainer {
-            try ModelContainer(for: SavedTrip.self, configurations: ModelConfiguration("Test", url: url, cloudKitDatabase: .none))
+            try ModelContainer(for: SavedTrip.self, SavedActivity.self, configurations: ModelConfiguration("Test", url: url, cloudKitDatabase: .none))
         }
         var original = trip(); original.save(try expense(12000))
         original.save(TripPayment(sender: sam.id, recipient: me.id, amount: 1000))

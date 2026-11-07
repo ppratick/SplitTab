@@ -6,6 +6,7 @@ struct PersonResultCard: View {
     let splitMode: SplitMode
     @State private var isExpanded = false
     @State private var copied = false
+    @State private var copyError: String?
 
     private var personColor: Color {
         Person.palette[result.avatarColorIndex % Person.palette.count]
@@ -86,12 +87,15 @@ struct PersonResultCard: View {
                 )
         )
         .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .tripError($copyError)
     }
 
     private func copy(breakdown: Bool) {
-        ShareClipboard.copy(SplitCopyText.person(result, currency: currencyCode ?? "USD", breakdown: breakdown))
-        copied = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
+        do {
+            try ShareClipboard.copy(SplitCopyText.person(result, currency: currencyCode ?? "USD", breakdown: breakdown))
+            copied = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
+        } catch { copyError = error.localizedDescription }
     }
 
     // MARK: - Breakdown

@@ -110,8 +110,10 @@ struct ResultsView: View {
     }
 
     private func copyAll(_ result: SplitResult, breakdown: Bool) {
-        ShareClipboard.copy(SplitCopyText.everyone(result, currency: session.currencyCode, title: receipt?.merchantName, breakdown: breakdown))
-        copiedAll = breakdown ? "Everyone’s breakdown copied" : "Everyone’s totals copied"
+        do {
+            try ShareClipboard.copy(SplitCopyText.everyone(result, currency: session.currencyCode, title: receipt?.merchantName, breakdown: breakdown))
+            copiedAll = breakdown ? "Everyone’s breakdown copied" : "Everyone’s totals copied"
+        } catch { session.calculationError = error.localizedDescription }
     }
 
     // MARK: - Subviews

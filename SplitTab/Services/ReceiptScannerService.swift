@@ -18,7 +18,8 @@ enum ScanError: LocalizedError {
 
 struct ReceiptScannerService {
     /// Send image to GPT-4o Vision and return parsed ReceiptData.
-    static func scanAndParse(image: UIImage) async throws -> ReceiptData {
-        try await OpenAIReceiptService.parseReceipt(image: image)
+    @MainActor
+    static func scanAndParse(image: UIImage, originalData: Data? = nil, tripID: UUID? = nil) async throws -> ReceiptData {
+        try await OpenAIReceiptService.parseReceipt(image: image, originalData: originalData, tripID: tripID)
     }
 }

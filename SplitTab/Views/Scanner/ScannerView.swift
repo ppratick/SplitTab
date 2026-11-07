@@ -2,6 +2,7 @@ import SwiftUI
 import AVFoundation
 
 struct ScannerView: View {
+    var tripID: UUID? = nil
     var onScanned: (ReceiptData) -> Void
 
     @State private var isScanning = true
@@ -197,7 +198,7 @@ struct ScannerView: View {
         isProcessing = true
         defer { isProcessing = false }
         do {
-            let receipt = try await OpenAIReceiptService.parseReceipt(image: image)
+            let receipt = try await OpenAIReceiptService.parseReceipt(image: image, tripID: tripID)
             onScanned(receipt)
             dismiss()
         } catch {

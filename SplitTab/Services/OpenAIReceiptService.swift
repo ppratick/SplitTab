@@ -3,24 +3,44 @@ import UIKit
 struct OpenAIReceiptService {
 
     private static let prompt = """
-    Extract all line items from this receipt. \
-    Return ONLY raw JSON with no markdown or backticks: \
-    {"merchant_name": null, "items": [{"name": "item name", "price": 0.00}], \
-    "fees": [{"name": "fee name", "price": 0.00}], \
-    "discounts": [{"name": "discount name", "price": 0.00}], \
-    "subtotal": 0.00, "tax": 0.00, "tax_pct": null, "tip": 0.00, "tip_pct": null}. \
-    "merchant_name" = the merchant, restaurant, or activity printed on the receipt. Return its name as a string, or null if absent or unreadable. Do not guess. \
-    "items" = all purchasable items on the receipt. \
-    "fees" = any extra charges such as delivery fee, service fee, bag fee, regulatory fee, convenience fee, or similar (use positive prices). \
-    "discounts" = any reductions such as coupons, promotions, member discounts, or credits (use positive prices — the app will negate them). \
-    If an item has a quantity greater than 1 (e.g. "2 Burger $20.00"), expand it into that many separate entries each with the per-unit price (e.g. two entries of "Burger" at $10.00 each). \
-    If the receipt shows a percentage for tax or tip (e.g. "Tax 8.5% $2.16"), include it as tax_pct or tip_pct (just the number, e.g. 8.5). \
-    Skip $0.00 modifier lines, subtotal, tax, tip, total, payment, card, \
-    and tip suggestion lines like 16%-$16.84. Use English names only.
+    Extract the receipt accurately. Return ONLY raw JSON, no markdown:
+    {"merchant_name": null, "currency": null, "items": [{"name": "item", "price": 0.00}],
+    "fees": [{"name": "fee", "price": 0.00}], "discounts": [{"name": "discount", "price": 0.00}],
+    "subtotal": null, "total": null, "tax": 0.00, "tax_pct": null, "tax_included": null,
+    "tip": 0.00, "tip_pct": null, "alternate_totals": [{"currency": "USD", "total": 0.00}]}.
+    All item, fee, discount, tax, tip, subtotal and total amounts MUST use the currency of the item prices.
+    Identify that currency from printed evidence; use an ISO code or null when unclear. Curaçao receipts may label Caribbean guilders CG, XCG or NAf; use XCG. US$ means USD. A dollar symbol alone is not evidence of USD.
+    total is the actual printed amount due in the ITEM currency. Never calculate it from subtotal plus tax. Return null if unreadable.
+    alternate_totals includes only printed equivalent totals due in other currencies, not tendered amounts, change, suggested tips or item prices. Never mix an alternate total into the items or fees. Do not invent exchange rates.
+    Tax may already be INCLUDED in item prices: if item amounts already add to the printed total due, the separately shown tax is informational. Set tax_included true; do not treat it as an extra fee. Preserve its amount in tax. If unclear, use null.
+    fees includes only extra payable charges. Do not list tax again in fees. Discounts use positive amounts; the app negates them.
+    For quantity greater than 1, expand into separate entries at the per-unit price. For example, 2 pizzas with line total 65.50 means two items at 32.75, not two at 65.50.
+    merchant_name is the printed name, or null. Include tax/tip percentages only when printed, otherwise null.
+    Skip zero-price modifiers, payment/card details, alternate currency totals and suggested tips. Use English item names.
     """
 
     /// Send a receipt image to GPT-6 Luna and return structured ReceiptData.
-    static func parseReceipt(image: UIImage) async throws -> ReceiptData {
+    @MainActor
+    static func parseReceipt(image: UIImage, originalData: Data? = nil, tripID: UUID? = nil) async throws -> ReceiptData {
+        guard let store = TripStore.current else { throw TripIssue("Receipt storage is unavailable. Reopen the app before scanning so your receipt can be preserved.") }
+        guard let original = originalData ?? image.pngData() else { throw ScanError.invalidImage }
+        let id = UUID()
+        try store.append(ActivityRecord(kind: "receipt.captured", title: "Receipt saved before scanning", tripID: tripID, receiptID: id, image: original))
+        do {
+            var receipt = try await requestReceipt(image: image, receiptID: id, tripID: tripID, store: store)
+            receipt.archiveID = id
+            try store.append(ActivityRecord(kind: "receipt.scanned", title: receipt.merchantName ?? "Receipt scanned", tripID: tripID, receiptID: id, after: try JSONEncoder().encode(receipt)))
+            return receipt
+        } catch {
+            // Preserve the photo even when credentials, network, extraction or saving fail.
+            do { try store.append(ActivityRecord(kind: "receipt.failed", title: "Scan failed — original photo preserved", tripID: tripID, receiptID: id)) }
+            catch { throw TripIssue("The photo was saved, but scan history could not be updated. \(error.localizedDescription)") }
+            throw error
+        }
+    }
+
+    @MainActor
+    private static func requestReceipt(image: UIImage, receiptID: UUID, tripID: UUID?, store: TripStore) async throws -> ReceiptData {
         let apiKey = try ReceiptAPIConfiguration.apiKey()
         guard !apiKey.isEmpty else {
             throw ScanError.apiError("Add your OpenAI API key in SplitTab Home → Settings → Receipt scanning. You can still enter receipt items manually.")
@@ -29,6 +49,7 @@ struct OpenAIReceiptService {
         guard let jpeg = resized.jpegData(compressionQuality: 0.82) else {
             throw ScanError.invalidImage
         }
+        try store.append(ActivityRecord(kind: "receipt.sent", title: "Receipt image submitted to AI", tripID: tripID, receiptID: receiptID, image: jpeg))
         let base64 = jpeg.base64EncodedString()
 
         let body: [String: Any] = [
@@ -89,83 +110,11 @@ struct OpenAIReceiptService {
             .replacingOccurrences(of: "```", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard let jsonData = cleaned.data(using: .utf8),
-              let parsed = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
+        guard let jsonData = cleaned.data(using: .utf8) else {
             throw ScanError.noTextFound
         }
 
-        // Items
-        var items: [LineItem] = []
-        if let rawItems = parsed["items"] as? [[String: Any]] {
-            for entry in rawItems {
-                guard let name = entry["name"] as? String, !name.isEmpty,
-                      let price = doubleValue(from: entry["price"]),
-                      price > 0 else { continue }
-                items.append(LineItem(name: name, amount: Decimal.roundToTwo(Decimal(price)), category: .item))
-            }
-        }
-
-        // Fees
-        var surcharges: [LineItem] = []
-        if let rawFees = parsed["fees"] as? [[String: Any]] {
-            for entry in rawFees {
-                guard let name = entry["name"] as? String, !name.isEmpty,
-                      let price = doubleValue(from: entry["price"]),
-                      price > 0 else { continue }
-                surcharges.append(LineItem(name: name, amount: Decimal.roundToTwo(Decimal(price)), category: .fee))
-            }
-        }
-
-        // Tax & tip
-        if let tax = doubleValue(from: parsed["tax"]), tax > 0 {
-            let pct = doubleValue(from: parsed["tax_pct"]).map { Decimal($0) }
-            surcharges.append(LineItem(name: "Tax", amount: Decimal.roundToTwo(Decimal(tax)), category: .tax, sourcePercent: pct))
-        }
-        if let tip = doubleValue(from: parsed["tip"]), tip > 0 {
-            let pct = doubleValue(from: parsed["tip_pct"]).map { Decimal($0) }
-            surcharges.append(LineItem(name: "Tip", amount: Decimal.roundToTwo(Decimal(tip)), category: .tip, sourcePercent: pct))
-        }
-
-        // Back-compute sourcePercent for any surcharge the AI didn't give a % for
-        let itemTotal = items.reduce(Decimal(0)) { $0 + $1.amount }
-        if itemTotal > 0 {
-            surcharges = surcharges.map { item in
-                guard item.sourcePercent == nil else { return item }
-                var updated = item
-                updated.sourcePercent = Decimal.roundToTwo(item.amount / itemTotal * 100)
-                return updated
-            }
-        }
-
-        // Discounts (API returns positive values; store as negative amounts)
-        var discounts: [LineItem] = []
-        if let rawDiscounts = parsed["discounts"] as? [[String: Any]] {
-            for entry in rawDiscounts {
-                guard let name = entry["name"] as? String, !name.isEmpty,
-                      let price = doubleValue(from: entry["price"]),
-                      price > 0 else { continue }
-                discounts.append(LineItem(name: name, amount: -Decimal.roundToTwo(Decimal(price)), category: .discount))
-            }
-        }
-
-        // Reference total: AI's subtotal + all extracted surcharges + discounts.
-        // This way the discrepancy banner fires only when the sum of individual
-        // items diverges from the AI's claimed subtotal.
-        let subtotalD = doubleValue(from: parsed["subtotal"]) ?? 0
-        let parsedTotal: Decimal? = subtotalD > 0
-            ? Decimal.roundToTwo(Decimal(subtotalD))
-              + surcharges.reduce(Decimal(0)) { $0 + $1.amount }
-              + discounts.reduce(Decimal(0)) { $0 + $1.amount }
-            : nil
-
-        return ReceiptData(items: items, surcharges: surcharges, discounts: discounts, merchantName: (parsed["merchant_name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), parsedTotal: parsedTotal)
-    }
-
-    /// Safely extract a Double from either a JSON Double or Int value.
-    private static func doubleValue(from value: Any?) -> Double? {
-        if let d = value as? Double { return d }
-        if let i = value as? Int { return Double(i) }
-        return nil
+        return try ReceiptData.extracted(from: jsonData)
     }
 
     /// Resize image so its longest side is at most `maxDimension` points.

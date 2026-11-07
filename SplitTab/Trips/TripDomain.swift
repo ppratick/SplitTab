@@ -25,7 +25,10 @@ enum TripCurrency {
         // Commas group thousands when there are exactly three digits per group.
         // A single comma with one or two trailing digits remains a decimal separator.
         let grouped = value.range(of: #"^-?[1-9][0-9]{0,2}(,[0-9]{3})+(\.[0-9]+)?$"#, options: .regularExpression) != nil
-        let normalized = grouped ? value.replacingOccurrences(of: ",", with: "") : value.replacingOccurrences(of: ",", with: ".")
+        var normalized = grouped ? value.replacingOccurrences(of: ",", with: "") : value.replacingOccurrences(of: ",", with: ".")
+        // Decimal keyboards commonly produce .56 (or ,56) without a leading zero.
+        if normalized.hasPrefix(".") { normalized = "0" + normalized }
+        else if normalized.hasPrefix("-.") { normalized.insert("0", at: normalized.index(after: normalized.startIndex)) }
         guard normalized.range(of: #"^-?[0-9]+(\.[0-9]+)?$"#, options: .regularExpression) != nil,
               let result = Decimal(string: normalized, locale: Locale(identifier: "en_US_POSIX")), !result.isNaN else {
             throw TripIssue("Enter a valid number, such as 1,250.50.")
@@ -110,6 +113,11 @@ struct TripPayment: Codable, Identifiable, Equatable {
     var fx: TripFX? = nil
     var balanceAmount: Int64 { fx?.convertedAmount ?? amount }
 }
+struct TripSettlementBaseline: Codable, Equatable {
+    var date = Date()
+    var expenses: [TripExpense]
+    var payments: [TripPayment]
+}
 struct TripRecord: Codable, Identifiable, Equatable {
     var id = UUID()
     var name: String
@@ -119,6 +127,7 @@ struct TripRecord: Codable, Identifiable, Equatable {
     var status: TripStatus = .active
     var expenses: [TripExpense] = []
     var payments: [TripPayment] = []
+    var settlementBaseline: TripSettlementBaseline? = nil
     var schemaVersion: Int? = 2
     var reportingCurrencyLocked: Bool? = false
     var currencyLocked: Bool { reportingCurrencyLocked == true || !expenses.isEmpty || !payments.isEmpty }
@@ -255,10 +264,49 @@ enum TripMath {
         }
         return values
     }
+    /// Subtract the last fully settled snapshot, rather than filtering by date.
+    /// Corrections/deletions of old expenses and undone payments remain visible.
+    static func currentLedger(_ trip: TripRecord) -> TripRecord {
+        guard let baseline = trip.settlementBaseline else { return trip }
+        var old = trip
+        old.expenses = baseline.expenses; old.payments = baseline.payments
+        old.settlementBaseline = nil
+        guard old.settled else { return trip }
+        var ledger = trip
+        ledger.settlementBaseline = nil
+        ledger.expenses = []
+        for id in Set(trip.expenses.map(\.id) + baseline.expenses.map(\.id)).sorted(by: { $0.uuidString < $1.uuidString }) {
+            let current = trip.expenses.first { $0.id == id }
+            let previous = baseline.expenses.first { $0.id == id }
+            if current == previous { continue }
+            if let previous {
+                var reversed = previous
+                reversed.amount = -previous.balanceAmount
+                reversed.fx = nil
+                reversed.shares = previous.balanceShares.mapValues { -$0 }
+                reversed.reportingShares = nil
+                reversed.title = "Correction to settled expense: " + previous.title
+                ledger.expenses.append(reversed)
+            }
+            if var current {
+                if previous != nil { current.title = "Updated settled expense: " + current.title }
+                ledger.expenses.append(current)
+            }
+        }
+        ledger.payments = trip.payments.filter { p in !baseline.payments.contains(p) }
+        for previous in baseline.payments where !trip.payments.contains(previous) {
+            var reversed = previous
+            reversed.amount = -previous.balanceAmount; reversed.fx = nil
+            ledger.payments.append(reversed)
+        }
+        return ledger
+    }
+
     /// Keep expense debts between their original participants. Payments reduce those
     /// debts (or create a refund credit). Cancel circular obligations so historical
     /// payments via other people cannot leave a fully settled trip owing money.
     static func settlements(_ trip: TripRecord) -> [TripTransfer] {
+        let trip = currentLedger(trip)
         let ids = trip.participants.map(\.id)
         let index = Dictionary(uniqueKeysWithValues: ids.enumerated().map { ($1, $0) })
         var debts = Array(repeating: Array(repeating: Int64(0), count: ids.count), count: ids.count)
@@ -309,48 +357,87 @@ enum TripMath {
         }
     }
 
-    /// Signed reporting-currency contributions explaining a displayed repayment.
+    /// Apply recorded payments to older charges first. Fully paid charges no
+    /// longer appear as places to pay for in a later message.
     static func settlementBreakdown(_ trip: TripRecord, transfer: TripTransfer) -> [(label: String, amount: Int64)] {
+        let ledger = currentLedger(trip)
         var lines: [(label: String, amount: Int64)] = []
-        for expense in trip.expenses {
-            if expense.payer == transfer.recipient, let share = expense.balanceShares[transfer.sender], share > 0 {
+        for expense in ledger.expenses.sorted(by: { $0.createdAt < $1.createdAt }) {
+            if expense.payer == transfer.recipient, let share = expense.balanceShares[transfer.sender], share != 0 {
                 lines.append((expense.title, share))
-            } else if expense.payer == transfer.sender, let share = expense.balanceShares[transfer.recipient], share > 0 {
-                lines.append(("Offset: " + expense.title + " paid by " + trip.person(transfer.sender), -share))
+            } else if expense.payer == transfer.sender, let share = expense.balanceShares[transfer.recipient], share != 0 {
+                lines.append((expense.title, -share))
             }
         }
-        for payment in trip.payments {
+        func apply(_ amount: Int64, positive: Bool) {
+            var remaining = amount
+            guard remaining > 0 else { return }
+            for index in lines.indices where positive ? lines[index].amount > 0 : lines[index].amount < 0 {
+                let used = min(remaining, abs(lines[index].amount))
+                lines[index].amount += positive ? -used : used
+                remaining -= used
+                if remaining == 0 { break }
+            }
+            if remaining > 0 {
+                lines.append((positive ? "Payment credit" : "Payment in the other direction", positive ? -remaining : remaining))
+            }
+        }
+        for payment in ledger.payments.sorted(by: { $0.createdAt < $1.createdAt }) {
             if payment.sender == transfer.sender && payment.recipient == transfer.recipient {
-                lines.append(("Payment already recorded", -payment.balanceAmount))
+                apply(abs(payment.balanceAmount), positive: payment.balanceAmount > 0)
             } else if payment.sender == transfer.recipient && payment.recipient == transfer.sender {
-                lines.append(("Payment received from " + trip.person(transfer.recipient), payment.balanceAmount))
+                apply(abs(payment.balanceAmount), positive: payment.balanceAmount < 0)
             }
         }
+        lines.removeAll { $0.amount == 0 }
         let adjustment = transfer.amount - lines.reduce(Int64(0)) { $0 + $1.amount }
-        if adjustment != 0 { lines.append(("Offset through other participants", adjustment)) }
+        if adjustment != 0 { lines.append(("Balance adjustment through other participants", adjustment)) }
         return lines
     }
     static func settlementText(_ trip: TripRecord, sender: UUID? = nil, breakdown: Bool) -> String {
         let transfers = settlements(trip).filter { sender == nil || $0.sender == sender }
-        var lines = [SplitCopyText.cleanLabel(trip.name), "Repayments"]
-        if transfers.isEmpty { lines += ["", "Nothing left to pay."] }
+        var lines = [SplitCopyText.bold(SplitCopyText.cleanLabel(trip.name) + " — Settle up"),
+                     "Only send the final payments below. Amounts already account for recorded payments and what you covered for each other."]
+        if let baseline = trip.settlementBaseline {
+            lines += ["", "Previously settled activity through " + baseline.date.formatted(date: .abbreviated, time: .shortened) + " is excluded. Later corrections are included."]
+        }
+        if transfers.isEmpty {
+            lines += ["", sender.map { "No payments left for " + SplitCopyText.cleanLabel(trip.person($0)) + " to send." }
+                      ?? "Everyone is settled. Nothing left to pay."]
+        }
         for person in trip.participants {
             let outgoing = transfers.filter { $0.sender == person.id }
             guard !outgoing.isEmpty else { continue }
-            lines += ["", SplitCopyText.cleanLabel(person.name)]
-            for (index, transfer) in outgoing.enumerated() {
-                if breakdown && index > 0 { lines.append("") }
-                lines.append("• \(SplitCopyText.cleanLabel(person.name)) owes \(SplitCopyText.cleanLabel(trip.person(transfer.recipient))) \(trip.money(transfer.amount))")
+            lines += ["", SplitCopyText.bold(trip.person(person.id))]
+            for transfer in outgoing {
+                let from = SplitCopyText.cleanLabel(trip.person(transfer.sender))
+                let to = SplitCopyText.cleanLabel(trip.person(transfer.recipient))
+                let details = settlementBreakdown(trip, transfer: transfer)
+                lines += ["", SplitCopyText.bold("Final payment: \(from) → \(to): \(trip.money(transfer.amount))")]
                 if breakdown {
-                    for line in settlementBreakdown(trip, transfer: transfer) {
-                        lines.append("  • \(SplitCopyText.cleanLabel(line.label)): \(trip.money(line.amount))")
+                    let covered = details.filter { $0.amount > 0 }
+                    let credits = details.filter { $0.amount < 0 }
+                    lines.append("\(to) covered \(from) / balance additions:")
+                    for line in covered { lines.append("• \(SplitCopyText.cleanLabel(line.label)): \(trip.money(line.amount))") }
+                    let gross = covered.reduce(Int64(0)) { $0 + $1.amount }
+                    lines.append("Subtotal: \(trip.money(gross))")
+                    if !credits.isEmpty {
+                        lines += ["", "Subtract what \(from) covered \(to) / payment credits:"]
+                        for line in credits { lines.append("• \(SplitCopyText.cleanLabel(line.label)): \(trip.money(-line.amount))") }
+                        let credit = -credits.reduce(Int64(0)) { $0 + $1.amount }
+                        lines.append("Subtotal to subtract: \(trip.money(credit))")
+                        lines.append("\(trip.money(gross)) − \(trip.money(credit)) = \(trip.money(transfer.amount))")
                     }
+                } else {
+                    var seen: Set<String> = []
+                    let names = details.map { SplitCopyText.cleanLabel($0.label) }.filter { seen.insert($0).inserted }
+                    if !names.isEmpty { lines.append("Includes: " + names.joined(separator: ", ")) }
                 }
             }
-            lines.append("Total to pay: \(trip.money(outgoing.reduce(0) { $0 + $1.amount }))")
+            lines += ["", SplitCopyText.bold("Total \(SplitCopyText.cleanLabel(person.name)) sends: \(trip.money(outgoing.reduce(0) { $0 + $1.amount }))")]
         }
         if sender == nil && !transfers.isEmpty {
-            lines += ["", "Total to repay: \(trip.money(transfers.reduce(0) { $0 + $1.amount }))"]
+            lines += ["", SplitCopyText.bold("Total remaining payments: \(trip.money(transfers.reduce(0) { $0 + $1.amount }))")]
         }
         return lines.joined(separator: "\n")
     }
@@ -375,6 +462,15 @@ enum TripMath {
             guard ids.contains(p.sender), ids.contains(p.recipient), p.sender != p.recipient, p.amount > 0, p.amount <= 1_000_000_000_000,
                   let fx = p.fx, fx.reportingCurrency == trip.currency,
                   try TripFX.make(amount: p.amount, currency: fx.currency, reporting: trip.currency, rate: fx.rate) == fx else { throw TripIssue("Payments need distinct participants and a positive amount.") }
+        }
+        if let baseline = trip.settlementBaseline {
+            var historical = trip
+            historical.settlementBaseline = nil
+            historical.status = .active
+            historical.expenses = baseline.expenses
+            historical.payments = baseline.payments
+            try validate(historical)
+            guard historical.settled else { throw TripIssue("Invalid settlement checkpoint: balances were not settled.") }
         }
         guard balances(trip).values.reduce(0, +) == 0, trip.status != .archived || trip.settled else { throw TripIssue("Invalid trip balance or archive state.") }
     }
@@ -406,23 +502,32 @@ enum TripMath {
 
 struct TripBackup: Codable {
     var format = "SplitTab.Trips"
-    var version = 2
+    var version = 3
+    var activity: [ActivityRecord]? = nil
     var exportedAt = Date()
     var trips: [TripRecord]
     func validated() throws -> [TripRecord] {
-        guard format == "SplitTab.Trips", (version == 1 || version == 2), trips.count <= 1000, Set(trips.map(\.id)).count == trips.count else { throw TripIssue("Unsupported backup version or duplicate trips.") }
+        guard format == "SplitTab.Trips", (1...3).contains(version), trips.count <= 1000, Set(trips.map(\.id)).count == trips.count else { throw TripIssue("Unsupported backup version or duplicate trips.") }
         guard trips.allSatisfy({ version == 1 ? $0.schemaVersion == nil : $0.schemaVersion == 2 }) else { throw TripIssue("Backup and trip schema versions do not match.") }
+        if let activity {
+            guard version == 3, Set(activity.map(\.id)).count == activity.count,
+                  activity.allSatisfy({ !$0.title.isEmpty && !$0.kind.isEmpty && $0.date.timeIntervalSince1970.isFinite }) else {
+                throw TripIssue("Invalid receipt/history records in backup.")
+            }
+        }
         return try trips.map { try $0.migrated() }
     }
     static func decode(_ data: Data) throws -> [TripRecord] {
-        guard data.count <= 50_000_000 else { throw TripIssue("Backup exceeds the 50 MB limit.") }
+        guard data.count <= 500_000_000 else { throw TripIssue("Backup exceeds the 500 MB limit.") }
         return try JSONDecoder().decode(Self.self, from: data).validated()
     }
-    static func encode(_ trips: [TripRecord]) throws -> Data {
-        let backup = Self(trips: trips)
+    static func encode(_ trips: [TripRecord], activity: [ActivityRecord]? = nil) throws -> Data {
+        let backup = Self(activity: activity, trips: trips)
         _ = try backup.validated()
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return try encoder.encode(backup)
+        let data = try encoder.encode(backup)
+        guard data.count <= 500_000_000 else { throw TripIssue("Backup exceeds 500 MB. Photos and history remain safely stored on this device.") }
+        return data
     }
 }

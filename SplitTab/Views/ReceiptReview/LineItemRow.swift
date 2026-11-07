@@ -5,6 +5,8 @@ struct LineItemRow: View {
     @Environment(\.tripCurrencyCode) private var currency
     let item: LineItem
     var baseAmount: Decimal = 0
+    var convertedAmount: Decimal?
+    var convertedCurrency: String?
     var onUpdate: (LineItem) -> Void
     var onValidation: (Bool) -> Void
     @State private var name: String
@@ -14,8 +16,9 @@ struct LineItemRow: View {
     @FocusState private var focus: Field?
     private enum Field { case name, price }
 
-    init(item: LineItem, baseAmount: Decimal = 0, onUpdate: @escaping (LineItem) -> Void, onValidation: @escaping (Bool) -> Void) {
+    init(item: LineItem, baseAmount: Decimal = 0, convertedAmount: Decimal? = nil, convertedCurrency: String? = nil, onUpdate: @escaping (LineItem) -> Void, onValidation: @escaping (Bool) -> Void) {
         self.item = item; self.baseAmount = baseAmount
+        self.convertedAmount = convertedAmount; self.convertedCurrency = convertedCurrency
         self.onUpdate = onUpdate; self.onValidation = onValidation
         _name = State(initialValue: item.name)
         _price = State(initialValue: NSDecimalNumber(decimal: abs(item.amount)).stringValue)
@@ -40,17 +43,28 @@ struct LineItemRow: View {
                 }.font(.caption2).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
-            HStack(spacing: 3) {
-                Text((item.category == .discount ? "− " : "") + (currency ?? "USD"))
-                    .font(.caption2).foregroundStyle(.secondary)
-                TextField("Price", text: Binding(get: { price }, set: { price = $0; update() }))
-                    .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
-                    .font(.system(.body, design: .rounded, weight: .semibold)).monospacedDigit()
-                    .focused($focus, equals: .price)
-                    .frame(width: 80)
-                    .accessibilityIdentifier("receipt.price.\(item.id)")
+            VStack(alignment: .trailing, spacing: 5) {
+                HStack(spacing: 3) {
+                    Text((item.category == .discount ? "− " : "") + (currency ?? "USD"))
+                        .font(.caption2).foregroundStyle(.secondary)
+                    TextField("Price", text: Binding(get: { price }, set: { price = $0; update() }))
+                        .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                        .font(.system(.body, design: .rounded, weight: .semibold)).monospacedDigit()
+                        .focused($focus, equals: .price)
+                        .frame(width: 80)
+                        .accessibilityIdentifier("receipt.price.\(item.id)")
+                }
+                if let convertedCurrency {
+                    Text(convertedAmount.map { TripCurrency.formatDecimal($0, convertedCurrency) } ?? "\(convertedCurrency) —")
+                        .font(.system(.caption, design: .rounded, weight: .medium))
+                        .foregroundStyle(Color.splitAccent).monospacedDigit()
+                        .accessibilityIdentifier("receipt.converted.\(item.id)")
+                }
             }
 
+        }
+        .onChange(of: item.amount) { _, amount in
+            if focus != .price { price = NSDecimalNumber(decimal: abs(amount)).stringValue }
         }
         .contextMenu {
             if item.category != .item && item.category != .unknown {

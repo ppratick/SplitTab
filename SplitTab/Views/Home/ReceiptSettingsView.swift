@@ -28,6 +28,7 @@ struct ReceiptSettingsView: View {
                                 }
                             Button(hasSavedKey ? "Replace Key" : "Save Key") {
                                 perform {
+                                    try TripStore.current?.append(ActivityRecord(kind: "settings.changed", title: "Saved / replaced receipt scanning key (credential excluded)"))
                                     try ReceiptAPIConfiguration.saveKey(key)
                                     key = ""
                                     hasSavedKey = true
@@ -55,6 +56,7 @@ struct ReceiptSettingsView: View {
             .confirmationDialog("Remove the saved API key?", isPresented: $confirmingRemoval, titleVisibility: .visible) {
                 Button("Remove Key", role: .destructive) {
                     perform {
+                        try TripStore.current?.append(ActivityRecord(kind: "settings.changed", title: "Removed receipt scanning key (credential excluded)"))
                         try ReceiptAPIConfiguration.removeKey()
                         hasSavedKey = false
                         key = ""

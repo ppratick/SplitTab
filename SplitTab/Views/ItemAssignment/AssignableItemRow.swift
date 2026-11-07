@@ -6,9 +6,13 @@ struct AssignableItemRow: View {
     let people: [Person]
     let assignedPeople: [Person]
     var onToggle: (UUID) -> Void
+    var onToggleEveryone: () -> Void
     var onDelete: (() -> Void)? = nil
     @State private var isExpanded = true
     private var isAssigned: Bool { !assignedPeople.isEmpty }
+    private var everyoneSelected: Bool {
+        !people.isEmpty && people.allSatisfy { person in assignedPeople.contains { $0.id == person.id } }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,7 +34,7 @@ struct AssignableItemRow: View {
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
                         if !assignedPeople.isEmpty {
-                            Text(assignedPeople.map(\.name).joined(separator: ", "))
+                            Text(everyoneSelected ? "Everyone" : assignedPeople.map(\.name).joined(separator: ", "))
                                 .font(.system(.caption2, design: .rounded))
                                 .foregroundStyle(Color.splitAccent.opacity(0.7))
                                 .lineLimit(1)
@@ -73,6 +77,20 @@ struct AssignableItemRow: View {
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
+                        Button(action: onToggleEveryone) {
+                            Label("Everyone", systemImage: "person.3.fill")
+                                .font(.system(.caption, design: .rounded, weight: .bold))
+                                .foregroundStyle(everyoneSelected ? Color.black.opacity(0.85) : Color.splitViolet)
+                                .padding(.horizontal, 12).padding(.vertical, 8)
+                                .background(Capsule().fill(everyoneSelected ? Color.splitViolet : Color.splitViolet.opacity(0.10)))
+                                .overlay(Capsule().strokeBorder(Color.splitViolet.opacity(everyoneSelected ? 0 : 0.25), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(people.isEmpty)
+                        .accessibilityIdentifier("assignment.everyone.\(item.id)")
+                        .accessibilityLabel("Everyone for \(item.name)")
+                        .accessibilityValue(everyoneSelected ? "Selected" : "Not selected")
+                        .accessibilityAddTraits(everyoneSelected ? .isSelected : [])
                         ForEach(people) { person in
                             PersonChip(
                                 person: person,

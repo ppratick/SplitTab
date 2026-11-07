@@ -49,7 +49,9 @@ struct ReceiptParser {
             i += 1
         }
 
-        return ReceiptData(items: items, surcharges: surcharges, discounts: discounts, parsedTotal: parsedTotal)
+        var receipt = ReceiptData(items: items, surcharges: surcharges, discounts: discounts, parsedTotal: parsedTotal)
+        receipt.reconcileIncludedTax()
+        return receipt
     }
 
     // MARK: - Private

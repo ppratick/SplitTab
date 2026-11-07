@@ -131,11 +131,11 @@ Backups are readable JSON containing all trip records and relationships. Keep
 files private if their contents are sensitive.
 
 **Restore Backup replaces all trips; it does not merge.** The app validates the
-entire `SplitTab.Trips` version-2 envelope (also imports legacy version 1), unique IDs, participant references,
+entire `SplitTab.Trips` version-3 envelope (also imports legacy versions 1 and 2), unique IDs, participant references,
 split totals, saved shares, payments and archive state before offering a replace
 confirmation. Replacement uses one SwiftData save transaction; invalid data or a
 failed save leaves the current records intact. Export current data first if you
-want to keep it. Unknown versions and files above 50 MB are rejected. Validation
+want to keep it. Unknown versions and files above 500 MB are rejected. Validation
 limits: 1,000 trips, 200 participants/trip, 10,000 expenses/payments per trip and
 10,000 lines per receipt. Manual monetary inputs are limited to one billion major
 currency units.
@@ -191,3 +191,32 @@ precision. Simulator tests also capture the opening, standalone and trip editors
 Trip Add Expense reuses the standalone Scan Receipt / Choose Photo / Manual Entry screen. Scans and photos proceed through the shared receipt review before expense details; AI merchant names prefill an editable expense name. Manual entry supports a quick total without line items. Trip participants and the payer are preloaded; participants are selected on a separate screen before receipt capture. By items reuses item assignment. New expenses offer only Even split and By items; older saved advanced splits remain readable. Payments save directly without an extra confirmation.
 
 Results offer Copy total and Copy breakdown on each person, plus Copy everyone’s totals and Copy everyone’s breakdown for group chats. Copies include names, currency codes, and reconciled totals; detailed copies include item shares, tax/tip/fees, discounts, and rounding adjustments when necessary.
+
+
+### Receipt archive, history, and settlement periods
+
+New camera/photo scans are archived before the AI request, together with the
+image used for scanning and the extracted result or failure status. Original
+photos are linked using a stable receipt ID that survives receipt editing and
+currency conversion. Home and trips expose **Receipts & history**. Photos taken
+before this feature cannot be recreated unless imported again.
+
+`SavedActivity` is append-only through the app. Committed trip mutations preserve
+before/after JSON in the same SwiftData transaction as the live change; deleting
+a live trip or expense does not remove evidence. Standalone receipt edits,
+assignments, calculated shares, copied messages, and backup actions also retain
+records. Credentials are never included. Existing trips get an initial snapshot
+on upgrade, without inventing earlier history. A version-3 backup includes images
+and all activity. Restore replaces live trips but merges history, rejects
+conflicting history IDs, and retains the prior live state in a restore event.
+This protects against in-app deletion, not uninstall, device loss or filesystem
+modification; export a backup for an independent copy.
+
+A fully settled trip establishes a snapshot checkpoint. Future repayments use
+changes since that zero-balance snapshot, so earlier settled expense names and
+cycles do not reappear as new charges. Editing/deleting a settled expense or
+undoing a payment produces a current correction rather than erasing history.
+Within an unsettled period, recorded pairwise payments reduce older charge lines
+first. Cross-participant routing adjustments are named explicitly. Clipboard
+messages use plain text with WhatsApp bold markers and explain both directions,
+credits, and the final amount to transfer.

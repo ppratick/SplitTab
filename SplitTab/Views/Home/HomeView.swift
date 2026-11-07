@@ -10,6 +10,7 @@ enum SplitTabRoute: Hashable {
 }
 
 struct HomeView: View {
+    var tripID: UUID? = nil
     var tripName: String? = nil
     var initialCurrency = "USD"
     var onBack: (() -> Void)? = nil
@@ -48,7 +49,7 @@ struct HomeView: View {
                     Spacer()
                     heroSection
                     Spacer()
-                    Picker("Bill currency", selection: Binding(get: { session.currencyCode }, set: { session.currencyCode = $0 })) {
+                    Picker("Paying currency", selection: Binding(get: { session.currencyCode }, set: { session.currencyCode = $0 })) {
                         ForEach(TripCurrency.codes, id: \.self) { Text($0).tag($0) }
                     }.tint(.splitAccent).padding(.bottom, 16).accessibilityIdentifier("bill.currency")
                     actionCards
@@ -71,7 +72,7 @@ struct HomeView: View {
                 destination(for: route)
             }
             .sheet(isPresented: $showScanner) {
-                ScannerView { receipt in
+                ScannerView(tripID: tripID) { receipt in
                     session.setReceipt(receipt)
                     session.navigate(to: .receiptReview)
                 }
@@ -88,10 +89,12 @@ struct HomeView: View {
             }
         }
         .tripError(Binding(get: { session.calculationError }, set: { session.calculationError = $0 }))
+        .tripError(Binding(get: { session.historyError }, set: { session.historyError = $0 }))
         .environment(session)
         .environment(\.tripCurrencyCode, session.currencyCode)
         .preferredColorScheme(.dark)
         .onAppear {
+            session.activityTripID = tripID
             if !currencyInitialized { session.currencyCode = initialCurrency; currencyInitialized = true }
             withAnimation(.spring(response: 0.8, dampingFraction: 0.75).delay(0.1)) {
                 appeared = true
@@ -257,7 +260,7 @@ struct HomeView: View {
     private func destination(for route: SplitTabRoute) -> some View {
         switch route {
         case .scanner:
-            ScannerView { receipt in
+            ScannerView(tripID: tripID) { receipt in
                 session.setReceipt(receipt)
                 session.navigate(to: .receiptReview)
             }
@@ -285,7 +288,7 @@ struct HomeView: View {
                       let image = UIImage(data: data) else {
                     throw ScanError.invalidImage
                 }
-                let receipt = try await ReceiptScannerService.scanAndParse(image: image)
+                let receipt = try await ReceiptScannerService.scanAndParse(image: image, originalData: data, tripID: tripID)
                 await MainActor.run {
                     session.setReceipt(receipt)
                     session.navigate(to: .receiptReview)

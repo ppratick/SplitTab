@@ -2,26 +2,53 @@ import SwiftUI
 import Observation
 
 @Observable
+@MainActor
 final class SplitSessionViewModel {
+    var activityTripID: UUID?
+    var historyError: String?
+    private var previousAudit: Data?
+    private var writingAudit = false
+
+    private func audit(_ title: String) {
+        guard !writingAudit else { return }
+        writingAudit = true
+        defer { writingAudit = false }
+        do {
+            let snapshot = BillActivitySnapshot(receipt: receipt,
+                people: people.map { TripParticipant(id: $0.id, name: $0.name) }, assignments: assignments,
+                currency: currencyCode, split: splitMode.rawValue, fees: feeDistribution.rawValue,
+                discounts: discountDistribution.rawValue,
+                result: splitResult.map { SplitCopyText.everyone($0, currency: currencyCode, title: receipt?.merchantName, breakdown: true) })
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            let data = try encoder.encode(snapshot)
+            guard data != previousAudit else { return }
+            guard let store = TripStore.current else { throw TripIssue("History storage is unavailable. Reopen the app to preserve changes.") }
+            try store.append(ActivityRecord(kind: "bill.changed", title: title, tripID: activityTripID,
+                receiptID: receipt?.archiveID ?? previousAudit.flatMap { try? JSONDecoder().decode(BillActivitySnapshot.self, from: $0).receipt?.archiveID }, before: previousAudit, after: data))
+            previousAudit = data
+        } catch { historyError = "Could not preserve history: " + error.localizedDescription }
+    }
 
     // MARK: - Receipt State
-    var currencyCode = "USD"
+    var currencyCode = "USD" { didSet { audit("Changed currency") } }
     var calculationError: String?
-    var receipt: ReceiptData?
+    var receipt: ReceiptData? { didSet { audit("Edited receipt") } }
+    var pendingReceiptCurrency: String?
 
     // MARK: - People
-    var people: [Person] = []
+    var people: [Person] = [] { didSet { audit("Changed people") } }
 
     // MARK: - Split Configuration
-    var splitMode: SplitMode = .itemized
-    var feeDistribution: FeeDistribution = .proportional
-    var discountDistribution: FeeDistribution = .even
+    var splitMode: SplitMode = .itemized { didSet { audit("Changed split method") } }
+    var feeDistribution: FeeDistribution = .proportional { didSet { audit("Changed fee distribution") } }
+    var discountDistribution: FeeDistribution = .even { didSet { audit("Changed discount distribution") } }
 
     // MARK: - Item Assignments (lineItem.id → Set of person.id)
-    var assignments: ItemAssignments = [:]
+    var assignments: ItemAssignments = [:] { didSet { audit("Changed item assignments") } }
 
     // MARK: - Result
-    var splitResult: SplitResult?
+    var splitResult: SplitResult? { didSet { audit("Calculated shares") } }
 
     // MARK: - Navigation
     var navigationPath = NavigationPath()
@@ -71,6 +98,12 @@ final class SplitSessionViewModel {
         }
     }
 
+    func toggleEveryone(itemId: UUID) {
+        let all = Set(people.map(\.id))
+        guard !all.isEmpty else { return }
+        assignments[itemId] = all.isSubset(of: assignments[itemId] ?? []) ? [] : all
+    }
+
     func isAssigned(itemId: UUID, personId: UUID) -> Bool {
         assignments[itemId]?.contains(personId) ?? false
     }
@@ -90,12 +123,33 @@ final class SplitSessionViewModel {
     // MARK: - Receipt Editing
 
     func setReceipt(_ data: ReceiptData) {
-        receipt = data
+        var source = data
+        source.reconcileIncludedTax()
+        let requested = currencyCode
+        pendingReceiptCurrency = nil
+        if source.currencyCode == nil { source.currencyCode = requested }
+        if source.currencyCode != requested {
+            if let converted = try? source.converted(to: requested) {
+                receipt = converted
+            } else {
+                receipt = source
+                currencyCode = source.currencyCode ?? requested
+                pendingReceiptCurrency = requested
+            }
+        } else { receipt = source }
         assignments = [:]
     }
 
+    func convertReceipt(to target: String, rate: Decimal? = nil) throws {
+        guard var receipt else { return }
+        if receipt.currencyCode == nil { receipt.currencyCode = currencyCode }
+        self.receipt = try receipt.converted(to: target, rate: rate)
+        currencyCode = target
+        pendingReceiptCurrency = nil
+    }
+
     func addLineItem(_ item: LineItem) {
-        guard var r = receipt else { return }
+        guard var r = receipt?.editableReceipt else { return }
         switch item.category {
         case .item, .unknown:
             r.items.append(item)
@@ -104,11 +158,12 @@ final class SplitSessionViewModel {
         case .discount:
             r.discounts.append(item)
         }
-        receipt = r
+        _ = saveEditedReceipt(r)
     }
 
-    func updateLineItem(_ item: LineItem) {
-        guard var r = receipt else { return }
+    @discardableResult
+    func updateLineItem(_ item: LineItem) -> Bool {
+        guard var r = receipt?.editableReceipt else { return false }
         if let idx = r.items.firstIndex(where: { $0.id == item.id }) {
             r.items[idx] = item
         } else if let idx = r.surcharges.firstIndex(where: { $0.id == item.id }) {
@@ -116,16 +171,31 @@ final class SplitSessionViewModel {
         } else if let idx = r.discounts.firstIndex(where: { $0.id == item.id }) {
             r.discounts[idx] = item
         }
-        receipt = r
+        return saveEditedReceipt(r)
     }
 
     func deleteLineItem(_ item: LineItem) {
-        guard var r = receipt else { return }
+        guard var r = receipt?.editableReceipt else { return }
         r.items.removeAll { $0.id == item.id }
         r.surcharges.removeAll { $0.id == item.id }
         r.discounts.removeAll { $0.id == item.id }
-        receipt = r
-        assignments.removeValue(forKey: item.id)
+        if saveEditedReceipt(r) { assignments.removeValue(forKey: item.id) }
+    }
+
+    @discardableResult
+    private func saveEditedReceipt(_ source: ReceiptData) -> Bool {
+        do {
+            if source.currencyCode == nil || source.currencyCode == currencyCode {
+                receipt = source
+            } else {
+                receipt = try source.converted(to: currencyCode, rate: receipt?.conversion?.rate)
+            }
+            calculationError = nil
+            return true
+        } catch {
+            calculationError = error.localizedDescription
+            return false
+        }
     }
 
     // MARK: - Calculation
@@ -161,6 +231,7 @@ final class SplitSessionViewModel {
 
     func startOver() {
         receipt = nil
+        pendingReceiptCurrency = nil
         people = []
         splitMode = .itemized
         feeDistribution = .proportional

@@ -31,6 +31,11 @@ struct ItemAssignmentView: View {
                                                     session.toggleAssignment(itemId: item.id, personId: personId)
                                                 }
                                             },
+                                            onToggleEveryone: {
+                                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                    session.toggleEveryone(itemId: item.id)
+                                                }
+                                            },
                                             onDelete: {
                                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                                     session.deleteLineItem(item)
