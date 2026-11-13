@@ -6,7 +6,7 @@ each person's share with the bill total.
 
 ## Features
 
-- Camera capture and optional GPT-4o receipt extraction with manual corrections.
+- Camera capture and optional AI receipt extraction with manual corrections.
 - Itemized and equal splits, including items shared by multiple people.
 - Taxes, tips, fees, and discounts allocated across participants.
 - Decimal currency calculations and rounding-remainder reconciliation.
@@ -22,7 +22,7 @@ cd SplitTab
 open SplitTab.xcodeproj
 ```
 
-Select the **SplitTab** scheme and an iPhone simulator, then run. Manual receipt
+Select the **SplitTab** scheme and an iPhone simulator, then run. For a build on your own iPhone, select your own Personal Team and a unique bundle identifier in Signing & Capabilities. Free Personal Team provisioning expires after seven days, so device builds need periodic reinstalling from Xcode. This repository provides source code; no iPhone installer is included. Manual receipt
 entry and bill splitting work without an API key. For an update to the existing physical-device installation, retain the existing
 bundle identifier and development team. Install over the app rather than deleting
 it. Camera behavior needs a physical-device check.
@@ -32,7 +32,7 @@ To compile for the simulator without signing:
 ```sh
 xcodebuild -project SplitTab.xcodeproj -scheme SplitTab \
   -configuration Debug -destination 'generic/platform=iOS Simulator' \
-  -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build
+  -derivedDataPath "${TMPDIR:-/tmp}/SplitTab-DerivedData" CODE_SIGNING_ALLOWED=NO build
 ```
 
 ## Optional AI receipt scanning
@@ -220,3 +220,7 @@ Within an unsettled period, recorded pairwise payments reduce older charge lines
 first. Cross-participant routing adjustments are named explicitly. Clipboard
 messages use plain text with WhatsApp bold markers and explain both directions,
 credits, and the final amount to transfer.
+
+## License
+
+[MIT](LICENSE). SplitTab is free and open source. Optional AI scanning uses your own API account and may incur provider charges.
