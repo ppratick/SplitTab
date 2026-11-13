@@ -22,7 +22,7 @@ cd SplitTab
 open SplitTab.xcodeproj
 ```
 
-Select the **SplitTab** scheme and an iPhone simulator, then run. For a build on your own iPhone, select your own Personal Team and a unique bundle identifier in Signing & Capabilities. Free Personal Team provisioning expires after seven days, so device builds need periodic reinstalling from Xcode. This repository provides source code; no iPhone installer is included. Manual receipt
+Select the **SplitTab** scheme and an iPhone simulator, then run. For a build on your own iPhone, configure your own Personal Team and a unique bundle identifier using the local signing file below. Free Personal Team provisioning expires after seven days, so device builds need periodic reinstalling from Xcode. This repository provides source code; no iPhone installer is included. Manual receipt
 entry and bill splitting work without an API key. For an update to the existing physical-device installation, retain the existing
 bundle identifier and development team. Install over the app rather than deleting
 it. Camera behavior needs a physical-device check.
@@ -220,6 +220,18 @@ Within an unsettled period, recorded pairwise payments reduce older charge lines
 first. Cross-participant routing adjustments are named explicitly. Clipboard
 messages use plain text with WhatsApp bold markers and explain both directions,
 credits, and the final amount to transfer.
+
+## Signing your own build
+
+The project reads `Signing.xcconfig` and an optional, ignored `Signing.local.xcconfig`. Configure your identity once for all targets:
+
+```sh
+cp Signing.local.xcconfig.example Signing.local.xcconfig
+```
+
+Edit `APP_BUNDLE_IDENTIFIER` to a unique identifier you control and set `DEVELOPMENT_TEAM` to your Apple Team ID for device signing. Simulator builds do not need a team. Keep the local file out of Git. Command-line build-setting overrides still work.
+
+For an update to an existing installation, retain its bundle identifier and signing team so it keeps the same app identity and access to its saved data. Do not overwrite an existing local signing file with the example.
 
 ## License
 

@@ -124,7 +124,7 @@ struct TripSetupView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var currency = "USD"
-    @State private var people = [TripParticipant(name: "Pratick"), TripParticipant(name: "")]
+    @State private var people = [TripParticipant(name: "You"), TripParticipant(name: "")]
     @State private var me: UUID?
     @State private var error: String?
     var body: some View {

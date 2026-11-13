@@ -34,7 +34,7 @@ final class TripCoreTests: XCTestCase {
         XCTAssertTrue(TripMath.settlements(trip).isEmpty, file: file, line: line)
     }
     func testCuracaoRepaysOriginalPayersWithMutualOffset() throws {
-        let people = ["Pratick", "Biplop", "Matt", "Bill", "Andrew", "Ethan", "Stefan"].map { TripParticipant(name: $0) }
+        let people = ["Alice", "Bob", "Casey", "Dana", "Evan", "Frank", "Grace"].map { TripParticipant(name: $0) }
         let ids = people.map(\.id)
         var t = TripRecord(name: "Curaçao", participants: people, me: ids[0])
         t.save(try expense(84000, payer: ids[3], ids: ids))
