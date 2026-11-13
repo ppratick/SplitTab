@@ -5,11 +5,12 @@ items or enter items manually, assign purchases to participants, and reconcile
 each person's share with the bill total.
 
 <p align="center">
-  <img src="docs/images/home.png" width="240" alt="SplitTab home screen">
-  <img src="docs/images/assign-items.png" width="240" alt="Assigning receipt items to people">
-  <img src="docs/images/results.png" width="240" alt="Each person's share of the bill">
+  <img src="docs/images/home.png" width="190" alt="SplitTab home screen">
+  <img src="docs/images/trip.png" width="190" alt="A trip with participant balances">
+  <img src="docs/images/assign-items.png" width="190" alt="Assigning receipt items to people">
+  <img src="docs/images/results.png" width="190" alt="Each person's share of the bill">
 </p>
-<p align="center"><sub>Screenshots show a sample bill with made-up names, entered manually in the Simulator.</sub></p>
+<p align="center"><sub>Screenshots show a sample trip and bill with made-up names, entered manually in the Simulator.</sub></p>
 
 ## Features
 
